@@ -1,6 +1,15 @@
 import type { ProviderCategory } from './providers';
 
-export type AgentKey = 'input' | 'structure' | 'tax' | 'pursue';
+export type AgentKey =
+  // Holly
+  | 'input'
+  | 'structure'
+  | 'tax'
+  | 'pursue'
+  // Hansel
+  | 'screen'
+  | 'offer'
+  | 'onboard';
 
 export interface Agent {
   key: AgentKey;
@@ -76,15 +85,38 @@ export const TEAMMATES: Teammate[] = [
     ],
   },
   {
-    key: 'arjun',
-    dbTeamKey: null,
-    name: 'Arjun',
-    initial: 'A',
+    key: 'hansel',
+    dbTeamKey: 'hiring_onboarding',
+    name: 'Hansel',
+    initial: 'H',
     role: 'Hiring and onboarding',
-    desk: 'Takes a signed offer through to a first day that works.',
-    about: 'Not available yet.',
-    live: false,
-    agents: [],
+    desk: 'Reads CVs, draws up offers, and gets a new joiner ready to be paid.',
+    about:
+      "Hansel handles hiring from the first CV to a first day that works. He reads applications against the role, keeps candidates straight, draws up offers, and walks a new joiner onto the books. Anything about pay he takes to Holly rather than working it out himself, and he never turns a candidate down on his own — screening gives you a summary, the decision stays yours.",
+    live: true,
+    agents: [
+      {
+        key: 'screen',
+        name: 'Applications',
+        oneLiner:
+          'Reads a CV against what the role actually needs and summarises it, without scoring anyone out.',
+        requiredCategories: ['people_data'],
+      },
+      {
+        key: 'offer',
+        name: 'Offers',
+        oneLiner:
+          'Draws up an offer and asks Holly for the pay split, so the structure is right before it goes out.',
+        requiredCategories: [],
+      },
+      {
+        key: 'onboard',
+        name: 'Onboarding',
+        oneLiner:
+          'Moves an accepted offer onto the books and tells you what is still missing before they can be paid.',
+        requiredCategories: [],
+      },
+    ],
   },
   {
     key: 'mira',

@@ -64,7 +64,8 @@ export type InlineAction =
     };
 
 export interface ThreadMessage {
-  from: 'you' | 'Holly';
+  /** 'you', or a teammate's name — messages are attributed to whoever spoke. */
+  from: string;
   body: string;
   action?: InlineAction;
 }

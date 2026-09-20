@@ -24,14 +24,14 @@ export interface Provider {
 }
 
 export const CATEGORY_LABELS: Record<ProviderCategory, string> = {
-  people_data: 'People & attendance data',
+  people_data: 'People, hiring & attendance',
   messaging: 'Messaging',
   government: 'Government & statutory',
 };
 
 export const CATEGORY_BLURBS: Record<ProviderCategory, string> = {
   people_data:
-    'Where your people, their leave and their attendance already live.',
+    'Where your people, your applicants and their attendance already live.',
   messaging: 'How your team reaches people when something needs an answer.',
   government: 'Statutory portals Holly files to and reconciles against.',
 };
@@ -108,12 +108,57 @@ export const PROVIDERS: Provider[] = [
     comingSoonNote: 'Not built yet.',
   },
   {
+    key: 'greenhouse',
+    label: 'Greenhouse',
+    category: 'people_data',
+    description: 'Pull applicants and their stage straight from Greenhouse.',
+    usedBy: 'Hansel',
+    available: false,
+    connectForm: 'token',
+    fields: [],
+    comingSoonNote: 'Paste a CV into the chat meanwhile and Hansel will read it.',
+  },
+  {
+    key: 'lever',
+    label: 'Lever',
+    category: 'people_data',
+    description: 'Sync candidates and interview stages from Lever.',
+    usedBy: 'Hansel',
+    available: false,
+    connectForm: 'token',
+    fields: [],
+    comingSoonNote: 'Not built yet.',
+  },
+  {
+    key: 'workable',
+    label: 'Workable',
+    category: 'people_data',
+    description: 'Sync applicants and job pipelines from Workable.',
+    usedBy: 'Hansel',
+    available: false,
+    connectForm: 'token',
+    fields: [],
+    comingSoonNote: 'Not built yet.',
+  },
+  {
+    key: 'docusign',
+    label: 'DocuSign',
+    category: 'people_data',
+    description: 'Send an offer for signature and track when it comes back.',
+    usedBy: 'Hansel',
+    available: false,
+    connectForm: 'token',
+    fields: [],
+    comingSoonNote:
+      'Hansel drafts the offer today; getting it signed is still manual.',
+  },
+  {
     key: 'whatsapp',
     label: 'WhatsApp for Business',
     category: 'messaging',
     description:
-      'Lets Holly chase a missing proof or an unexplained absence directly with the person.',
-    usedBy: 'Holly',
+      'Lets Holly chase a missing proof, or Hansel chase a candidate, directly.',
+    usedBy: 'Holly and Hansel',
     available: false,
     connectForm: 'token',
     fields: [],

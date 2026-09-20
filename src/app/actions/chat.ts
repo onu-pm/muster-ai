@@ -21,6 +21,8 @@ import {
 import { dutyTypeLabel, pluralise } from '@/lib/copy/labels';
 import { buildFactsheet } from '@/lib/agents/factsheet';
 import { converse } from '@/lib/agents/converse';
+import { plan, runPlan } from '@/lib/agents/router';
+import { listCapabilities } from '@/lib/agents/registry';
 
 /**
  * Holly's side of the conversation.
@@ -224,6 +226,32 @@ export async function sendGoal(
       member.orgName,
       member.userName,
     );
+
+    /*
+     * Does this need actual work doing, possibly across more than one
+     * teammate? The router decides that; the person is never asked to pick.
+     */
+    const planned = await plan(text, facts, history);
+
+    if (planned && planned.steps.length > 0) {
+      const messages: ThreadMessage[] = [];
+      if (planned.opening) {
+        const owner = listCapabilities().find(
+          (c) => c.key === planned.steps[0].capability,
+        );
+        messages.push({
+          from: owner?.teammate ?? 'Holly',
+          body: planned.opening,
+        });
+      }
+
+      messages.push(
+        ...(await runPlan(planned, member.orgId, member.userName, text)),
+      );
+
+      if (messages.length > 0) return { messages, state };
+    }
+
     const spoken = await converse(text, facts, history);
 
     if (spoken.action === 'answer') {
