@@ -94,9 +94,59 @@ membership check by definition.
 - **Statutory filing.** Holly computes EPFO, ESIC and TDS figures but cannot
   file them. Those portals are listed as coming soon.
 
+## Holly's agents
+
+Holly answers for the whole team. Nobody using this has to know there are four
+separate agents behind her.
+
+| Agent | What it does | Where its figures come from |
+| --- | --- | --- |
+| **Input** | Reads Remote.com or a spreadsheet, brings the roster into `people`, reconciles leave into one loss-of-pay figure per person, consults confirmed facts before raising anything | `src/lib/rules/lop.ts` |
+| **Structure** | Applies the 50% wage-definition test, reading a confirmed `wage_definition` rule before its own default | `src/lib/rules/wage-definition.ts` |
+| **Tax** | Caps verified proofs and projects monthly TDS, reading a confirmed `proof_category_cap` rule before the statutory caps | `src/lib/rules/tax.ts` |
+| **Pursue** | Drafts a follow-up and records the intent. Always returns `sent: false` | — |
+
+`npm test` covers the rule code: 54 tests across the wage test, loss of pay,
+tax, deduction caps, EPF/ESI, CSV parsing and intent reading. Models are used to
+read a pasted rule sheet and to draft language. No model output is ever treated
+as a number.
+
+### Two things the first real run got wrong
+
+Both are fixed, and both are the kind of error worth naming:
+
+1. **Remote holds time off, not attendance.** Days present were derived by
+   subtracting leave from the month, then "reconciled" against the same leave —
+   which can never disagree. Holly was reporting "everything reconciled cleanly"
+   when the truth was "I only have one record, so there is nothing to compare".
+   `crossChecked` now carries that distinction and she says so.
+2. **No salary structure is not a pass.** People with nothing on file were
+   scoring `passed: true` on the wage test because zero remuneration cannot fall
+   below half of itself. They are now reported as untestable, separately from
+   those that genuinely pass.
+
+## Where the statutory figures came from
+
+The brief asked for an open reference checked against primary sources. Each
+table in `src/lib/rules/tax-tables.ts` carries its provenance inline. Summary:
+
+| Figures | Status |
+| --- | --- |
+| ESI 0.75% employee / 3.25% employer, in force 1 Jul 2019, ₹176 daily-wage exemption | **Verified** against [esic.gov.in/contribution](https://www.esic.gov.in/contribution) |
+| EPF 12% employer, 8.33% to EPS, 0.5% EDLI, ₹15,000 wage ceiling | **Verified** against EPFO's published material on [epfo.gov.in](https://www.epfo.gov.in). The contribution-rate PDF itself could not be parsed, so the 0.5% admin charge is the least certain figure here |
+| ESI ₹21,000 coverage ceiling | **Not verified** — not stated on the ESIC page that was reachable |
+| Income tax slabs, standard deduction, 87A rebate, cess, surcharge, 80C/80D/24(b) caps | **Not verified against a primary source.** incometaxindia.gov.in refuses automated access (HTTP 403). Corroborated only across independent tax publishers. **Re-check these before any real filing.** |
+
+## Deployment
+
+Deployed on Vercel at **https://muster-phi-ruby.vercel.app**, pointed at the
+same Supabase project. Production and development environment variables are set;
+preview environments are not, so preview builds will fail until those are added.
+
 ## Build progress
 
-- [x] Phase 1 — foundation: auth, onboarding, shell, design tokens, catalogs,
-      migration 0007
-- [ ] Phase 2 — the agents behind Holly
-- [ ] Phase 3 — the five screens
+- [x] Foundation: auth, onboarding, shell, design tokens, catalogs, migration 0007
+- [x] Holly's agents, on tested deterministic rule code
+- [x] The five screens, built to the layout spec
+- [x] Deployed
+- [ ] Migration 0007 applied (needs a Postgres connection string)
