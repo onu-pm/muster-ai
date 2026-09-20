@@ -245,7 +245,13 @@ select {
   background: var(--accent-soft);
 }
 
+.profileText {
+  min-width: 0;
+  display: block;
+}
+
 .profileName {
+  display: block;
   font-size: 13px;
   font-weight: 600;
   overflow: hidden;
@@ -254,6 +260,7 @@ select {
 }
 
 .profileSub {
+  display: block;
   font-size: 11px;
   color: var(--muted);
   overflow: hidden;
@@ -702,42 +709,66 @@ select {
   }
 }
 
-@media (max-width: 720px) {
-  .sidebar {
-    position: static;
-    height: auto;
-    width: 100%;
-    flex: none;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-    padding: 10px 12px;
+/*
+ * The sidebar stays on the left at every width. Below this breakpoint it
+ * narrows to an icon rail rather than becoming a top bar, so the shell keeps
+ * the shape people expect from a desktop tool.
+ */
+@media (max-width: 860px) {
+  :root {
+    --sidebar-width: 60px;
   }
 
-  .appShell {
-    flex-direction: column;
+  .sidebar {
+    padding: 20px 8px;
+    align-items: center;
   }
 
   .wordmark {
-    padding: 0 8px 0 4px;
+    padding: 4px 0 20px;
+    font-size: 17px;
+  }
+
+  /* "Muster" -> "M" */
+  .wordmark span {
+    display: none;
+  }
+
+  .navItem {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  .navItem span:not(.navBadge) {
+    display: none;
+  }
+
+  .navBadge {
+    position: absolute;
+    transform: translate(12px, -10px);
+    margin-left: 0;
   }
 
   .navList {
-    flex-direction: row;
+    width: 100%;
   }
 
-  .sidebarFoot {
-    margin-top: 0;
-    margin-left: auto;
-    padding-top: 0;
-    border-top: 0;
+  .navItem {
+    position: relative;
+    width: 100%;
   }
 
-  .profileSub {
+  .profileLink {
+    justify-content: center;
+    padding: 8px 0;
+  }
+
+  .profileText {
     display: none;
+  }
+
+  .mainArea {
+    padding: 20px 16px;
   }
 
   .msg {

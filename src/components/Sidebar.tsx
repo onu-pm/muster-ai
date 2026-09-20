@@ -28,7 +28,9 @@ export function Sidebar({ orgName, userEmail, needsYouCount }: Props) {
 
   return (
     <nav className="sidebar" aria-label="Main">
-      <div className="wordmark">Muster</div>
+      <div className="wordmark" aria-label="Muster">
+        M<span>uster</span>
+      </div>
 
       <div className="navList">
         {NAV.map(({ href, label, Icon }) => {
@@ -63,13 +65,9 @@ export function Sidebar({ orgName, userEmail, needsYouCount }: Props) {
           data-active={pathname.startsWith('/profile')}
         >
           <span className="avatar avatar-sm">{initial}</span>
-          <span style={{ minWidth: 0 }}>
-            <span className="profileName" style={{ display: 'block' }}>
-              {orgName}
-            </span>
-            <span className="profileSub" style={{ display: 'block' }}>
-              {userEmail}
-            </span>
+          <span className="profileText">
+            <span className="profileName">{orgName}</span>
+            <span className="profileSub">{userEmail}</span>
           </span>
         </Link>
       </div>

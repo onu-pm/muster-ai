@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getTeammate } from '@/lib/catalog/team-agents';
 
 export interface ActionResult {
@@ -22,9 +23,15 @@ export async function createOrganisation(name: string): Promise<ActionResult> {
     return { ok: false, error: 'Your session has expired. Sign in again.' };
   }
 
+  // Both inserts bypass RLS by necessity: every policy here is scoped to
+  // is_org_member(org_id), and the first member of a new organisation cannot
+  // already be a member of it. The membership row is always written for the
+  // authenticated user's own id, never one supplied by the caller.
+  const admin = createAdminClient();
+
   // plan and data_region are NOT NULL on this table; every existing row uses
   // these values, so new organisations match rather than relying on a default.
-  const { data: org, error: orgError } = await supabase
+  const { data: org, error: orgError } = await admin
     .from('organisations')
     .insert({ name: trimmed, plan: 'pilot', data_region: 'ap-south-1' })
     .select('id')
@@ -37,13 +44,17 @@ export async function createOrganisation(name: string): Promise<ActionResult> {
     };
   }
 
-  const { error: memberError } = await supabase.from('org_members').insert({
+  const { error: memberError } = await admin.from('org_members').insert({
     org_id: org.id,
     user_id: user.id,
     role: 'hr_admin',
   });
 
-  if (memberError) return { ok: false, error: memberError.message };
+  if (memberError) {
+    // Don't strand an organisation nobody can reach.
+    await admin.from('organisations').delete().eq('id', org.id);
+    return { ok: false, error: memberError.message };
+  }
 
   return { ok: true, orgId: org.id as string };
 }
