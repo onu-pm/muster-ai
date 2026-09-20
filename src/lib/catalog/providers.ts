@@ -1,4 +1,4 @@
-export type ProviderCategory = 'people_attendance' | 'messaging' | 'government';
+export type ProviderCategory = 'people_data' | 'messaging' | 'government';
 
 export type ConnectFormKind = 'token' | 'upload' | 'none';
 
@@ -24,29 +24,30 @@ export interface Provider {
 }
 
 export const CATEGORY_LABELS: Record<ProviderCategory, string> = {
-  people_attendance: 'People & attendance data',
+  people_data: 'People & attendance data',
   messaging: 'Messaging',
   government: 'Government & statutory',
 };
 
 export const CATEGORY_BLURBS: Record<ProviderCategory, string> = {
-  people_attendance:
+  people_data:
     'Where your people, their leave and their attendance already live.',
   messaging: 'How your team reaches people when something needs an answer.',
   government: 'Statutory portals Holly files to and reconciles against.',
 };
 
 export const CATEGORY_ORDER: ProviderCategory[] = [
-  'people_attendance',
+  'people_data',
   'messaging',
   'government',
 ];
 
 export const PROVIDERS: Provider[] = [
   {
-    key: 'remote',
+    // Matches the provider_key already present in this project's connections table.
+    key: 'remote_com',
     label: 'Remote.com',
-    category: 'people_attendance',
+    category: 'people_data',
     description:
       'Pulls your people, their leave and their time off straight from Remote.',
     usedBy: 'Holly',
@@ -65,7 +66,7 @@ export const PROVIDERS: Provider[] = [
   {
     key: 'csv_import',
     label: 'Spreadsheet import',
-    category: 'people_attendance',
+    category: 'people_data',
     description:
       'Upload a monthly attendance sheet as a CSV. Good when your records live in a spreadsheet.',
     usedBy: 'Holly',
@@ -76,7 +77,7 @@ export const PROVIDERS: Provider[] = [
   {
     key: 'darwinbox',
     label: 'Darwinbox',
-    category: 'people_attendance',
+    category: 'people_data',
     description: 'Sync people and leave records from Darwinbox.',
     usedBy: 'Holly',
     available: false,
@@ -87,7 +88,7 @@ export const PROVIDERS: Provider[] = [
   {
     key: 'keka',
     label: 'Keka',
-    category: 'people_attendance',
+    category: 'people_data',
     description: 'Sync people and attendance from Keka.',
     usedBy: 'Holly',
     available: false,
@@ -98,7 +99,7 @@ export const PROVIDERS: Provider[] = [
   {
     key: 'zoho_people',
     label: 'Zoho People',
-    category: 'people_attendance',
+    category: 'people_data',
     description: 'Sync people and leave balances from Zoho People.',
     usedBy: 'Holly',
     available: false,

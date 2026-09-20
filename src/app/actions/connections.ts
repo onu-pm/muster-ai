@@ -38,7 +38,6 @@ export async function connectProvider(
       org_id: org.id,
       category: provider.category,
       provider_key: provider.key,
-      label: provider.label,
       status: 'connected',
       credentials,
       connected_at: new Date().toISOString(),

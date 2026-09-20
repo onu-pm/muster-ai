@@ -1,223 +1,209 @@
 import { createClient } from '@/lib/supabase/server';
 
 /**
- * Selects are deliberately `*` and reads are defensive: this schema was built by
- * an earlier project and column naming varies between tables. Anything missing
- * degrades to a sensible blank rather than throwing on a page render.
+ * `exceptions` carries no org_id of its own — it hangs off `duty_instances`,
+ * which is where org scoping and the subject person live. Every read here goes
+ * through that join, which is also what RLS keys off.
  */
 
-export const OPEN_STATUSES = ['open', 'pending', 'proposed'] as const;
-export const RESOLVED_STATUSES = [
-  'approved',
-  'rejected',
-  'corrected',
-  'resolved',
-  'dismissed',
-  'auto_resolved',
-] as const;
+interface DutyJoin {
+  id: string;
+  org_id: string;
+  duty_type: string;
+  state: string;
+  due_at: string | null;
+  opened_at: string | null;
+  subject_person_id: string | null;
+  people: { full_name: string } | { full_name: string }[] | null;
+}
 
-type Row = Record<string, unknown>;
-
-const str = (row: Row, ...keys: string[]): string | null => {
-  for (const k of keys) {
-    const v = row[k];
-    if (typeof v === 'string' && v.trim()) return v;
-  }
-  return null;
-};
-
-const num = (row: Row, ...keys: string[]): number | null => {
-  for (const k of keys) {
-    const v = row[k];
-    if (typeof v === 'number') return v;
-    if (typeof v === 'string' && v.trim() && Number.isFinite(Number(v))) {
-      return Number(v);
-    }
-  }
-  return null;
-};
-
-const obj = (row: Row, ...keys: string[]): Record<string, unknown> => {
-  for (const k of keys) {
-    const v = row[k];
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      return v as Record<string, unknown>;
-    }
-  }
-  return {};
-};
+interface ExceptionRow {
+  id: string;
+  duty_instance_id: string;
+  kind: string;
+  kind_label?: string | null;
+  conclusion: string;
+  confidence: number;
+  status: string;
+  opened_at: string;
+  resolved_at: string | null;
+  payload: Record<string, unknown> | null;
+  duty_instances: DutyJoin | DutyJoin[] | null;
+}
 
 export interface CatchupItem {
   id: string;
-  kind: string | null;
+  kind: string;
   kindLabel: string | null;
-  status: string | null;
-  personId: string | null;
+  status: string;
+  dutyInstanceId: string;
+  dutyType: string | null;
   personName: string | null;
-  /** What was found, in the agent's own words. */
-  finding: string | null;
-  /** The conclusion it reached. */
-  conclusion: string | null;
-  /** The rule it leaned on, in one line. */
+  /** Holly's own sentence about what she found. Already human-readable. */
+  conclusion: string;
+  confidence: number;
+  /** The rule she leaned on, in one line. */
   ruleLine: string | null;
-  confidence: number | null;
-  createdAt: string | null;
+  openedAt: string;
   resolvedAt: string | null;
-  details: Record<string, unknown>;
+  payload: Record<string, unknown>;
 }
 
-function toItem(row: Row, personNames: Map<string, string>): CatchupItem {
-  const details = obj(row, 'details', 'payload', 'data', 'context', 'metadata');
-  const personId = str(row, 'person_id', 'subject_person_id', 'employee_id');
+const one = <T>(v: T | T[] | null): T | null =>
+  Array.isArray(v) ? (v[0] ?? null) : v;
+
+const EXCEPTION_SELECT = `
+  id, duty_instance_id, kind, kind_label, conclusion, confidence, status,
+  opened_at, resolved_at, payload,
+  duty_instances!inner (
+    id, org_id, duty_type, state, due_at, opened_at, subject_person_id,
+    people:subject_person_id ( full_name )
+  )
+`;
+
+/**
+ * `kind_label` is added by migration 0007. Until that has run the column does
+ * not exist and PostgREST rejects the whole select, so the first failure drops
+ * it and the labels module supplies the wording instead.
+ */
+let kindLabelColumnExists = true;
+
+function selectList(): string {
+  return kindLabelColumnExists
+    ? EXCEPTION_SELECT
+    : EXCEPTION_SELECT.replace('kind_label, ', '');
+}
+
+function toItem(row: ExceptionRow): CatchupItem {
+  const duty = one(row.duty_instances);
+  const person = duty ? one(duty.people) : null;
+  const payload = row.payload ?? {};
+
+  // The subject is usually carried in the payload rather than on the duty row:
+  // duty_instances.subject_person_id is null for whole-payroll runs.
+  const payloadPerson =
+    typeof payload.personName === 'string' ? payload.personName : null;
+
+  const ruleFromPayload =
+    typeof payload.ruleApplied === 'string'
+      ? payload.ruleApplied
+      : typeof payload.rule_label === 'string'
+        ? payload.rule_label
+        : null;
 
   return {
-    id: String(row.id ?? ''),
-    kind: str(row, 'kind', 'type', 'category'),
-    kindLabel: str(row, 'kind_label'),
-    status: str(row, 'status', 'state'),
-    personId,
-    personName: personId ? (personNames.get(personId) ?? null) : null,
-    finding:
-      str(row, 'finding', 'summary', 'description', 'message') ??
-      str(details as Row, 'finding', 'summary', 'description'),
-    conclusion:
-      str(row, 'conclusion', 'proposal', 'recommendation', 'resolution') ??
-      str(details as Row, 'conclusion', 'proposal', 'recommendation'),
-    ruleLine:
-      str(row, 'rule_line', 'rule_applied', 'rule_label', 'rule_key') ??
-      str(details as Row, 'rule_line', 'rule_applied', 'rule_label', 'rule_key'),
-    confidence:
-      num(row, 'confidence', 'confidence_score') ??
-      num(details as Row, 'confidence'),
-    createdAt: str(row, 'created_at', 'inserted_at'),
-    resolvedAt: str(row, 'resolved_at', 'updated_at'),
-    details,
+    id: row.id,
+    kind: row.kind,
+    kindLabel: row.kind_label ?? null,
+    status: row.status,
+    dutyInstanceId: row.duty_instance_id,
+    dutyType: duty?.duty_type ?? null,
+    personName: payloadPerson ?? person?.full_name ?? null,
+    conclusion: row.conclusion,
+    confidence: Number(row.confidence ?? 0),
+    ruleLine: ruleFromPayload,
+    openedAt: row.opened_at,
+    resolvedAt: row.resolved_at,
+    payload,
   };
 }
 
-async function namesFor(
+async function queryExceptions(
   orgId: string,
-  ids: (string | null)[],
-): Promise<Map<string, string>> {
-  const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))];
-  if (!unique.length) return new Map();
-
+  status: 'open' | 'resolved',
+): Promise<CatchupItem[]> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from('people')
-    .select('*')
-    .eq('org_id', orgId)
-    .in('id', unique);
 
-  const map = new Map<string, string>();
-  for (const row of (data ?? []) as Row[]) {
-    const id = typeof row.id === 'string' ? row.id : null;
-    if (!id) continue;
-    const name =
-      str(row, 'full_name', 'name', 'display_name') ??
-      [str(row, 'first_name'), str(row, 'last_name')].filter(Boolean).join(' ');
-    if (name) map.set(id, name);
+  const run = async () =>
+    supabase
+      .from('exceptions')
+      .select(selectList())
+      .eq('duty_instances.org_id', orgId)
+      .eq('status', status)
+      .order(status === 'open' ? 'opened_at' : 'resolved_at', {
+        ascending: false,
+      });
+
+  let { data, error } = await run();
+
+  if (error && kindLabelColumnExists && /kind_label/.test(error.message)) {
+    kindLabelColumnExists = false;
+    ({ data, error } = await run());
   }
-  return map;
+
+  if (error || !data) return [];
+  return (data as unknown as ExceptionRow[]).map(toItem);
 }
 
 export async function countNeedsYou(orgId: string): Promise<number> {
   const supabase = await createClient();
   const { count, error } = await supabase
     .from('exceptions')
-    .select('id', { count: 'exact', head: true })
-    .eq('org_id', orgId)
-    .in('status', [...OPEN_STATUSES]);
+    .select('id, duty_instances!inner(org_id)', { count: 'exact', head: true })
+    .eq('duty_instances.org_id', orgId)
+    .eq('status', 'open');
 
   if (error) return 0;
   return count ?? 0;
 }
 
 export async function listNeedsYou(orgId: string): Promise<CatchupItem[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('exceptions')
-    .select('*')
-    .eq('org_id', orgId)
-    .in('status', [...OPEN_STATUSES])
-    .order('created_at', { ascending: false });
-
-  if (error || !data) return [];
-  const rows = data as Row[];
-  const names = await namesFor(
-    orgId,
-    rows.map((r) => str(r, 'person_id', 'subject_person_id', 'employee_id')),
-  );
-  return rows.map((r) => toItem(r, names));
+  return queryExceptions(orgId, 'open');
 }
 
 export async function listRecentlyResolved(
   orgId: string,
   days = 7,
 ): Promise<CatchupItem[]> {
-  const since = new Date(Date.now() - days * 86_400_000).toISOString();
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from('exceptions')
-    .select('*')
-    .eq('org_id', orgId)
-    .in('status', [...RESOLVED_STATUSES])
-    .gte('updated_at', since)
-    .order('updated_at', { ascending: false })
-    .limit(40);
-
-  if (error || !data) return [];
-  const rows = data as Row[];
-  const names = await namesFor(
-    orgId,
-    rows.map((r) => str(r, 'person_id', 'subject_person_id', 'employee_id')),
-  );
-  return rows.map((r) => toItem(r, names));
+  const since = Date.now() - days * 86_400_000;
+  const all = await queryExceptions(orgId, 'resolved');
+  return all
+    .filter((item) => {
+      if (!item.resolvedAt) return false;
+      return new Date(item.resolvedAt).getTime() >= since;
+    })
+    .slice(0, 40);
 }
 
 export interface ComingUpItem {
   id: string;
-  title: string;
+  dutyType: string;
   personName: string | null;
-  stage: string | null;
-  status: string | null;
-  dueDate: string | null;
-  kind: string | null;
+  state: string;
+  dueAt: string | null;
+  openedAt: string;
+  openExceptions: number;
 }
 
 export async function listComingUp(orgId: string): Promise<ComingUpItem[]> {
   const supabase = await createClient();
+
   const { data, error } = await supabase
     .from('duty_instances')
-    .select('*')
+    .select(
+      `id, duty_type, state, due_at, opened_at, subject_person_id,
+       people:subject_person_id ( full_name ),
+       exceptions ( id, status )`,
+    )
     .eq('org_id', orgId)
-    .order('due_date', { ascending: true, nullsFirst: false })
-    .limit(50);
+    .neq('state', 'closed')
+    .order('due_at', { ascending: true, nullsFirst: false });
 
   if (error || !data) return [];
-  const rows = data as Row[];
-  const names = await namesFor(
-    orgId,
-    rows.map((r) => str(r, 'person_id', 'subject_person_id')),
-  );
 
-  return rows
-    .filter((r) => {
-      const status = str(r, 'status', 'state');
-      return !status || !['completed', 'complete', 'done', 'cancelled'].includes(status);
-    })
-    .map((r) => {
-      const personId = str(r, 'person_id', 'subject_person_id');
-      return {
-        id: String(r.id ?? ''),
-        title:
-          str(r, 'title', 'name', 'label', 'duty_key', 'kind') ?? 'Scheduled work',
-        personName: personId ? (names.get(personId) ?? null) : null,
-        stage: str(r, 'stage', 'current_step', 'phase'),
-        status: str(r, 'status', 'state'),
-        dueDate: str(r, 'due_date', 'due_at', 'deadline_at', 'scheduled_for'),
-        kind: str(r, 'duty_key', 'kind', 'type'),
-      };
-    });
+  return (data as unknown as (DutyJoin & {
+    exceptions: { id: string; status: string }[] | null;
+  })[]).map((row) => {
+    const person = one(row.people);
+    return {
+      id: row.id,
+      dutyType: row.duty_type,
+      personName: person?.full_name ?? null,
+      state: row.state,
+      dueAt: row.due_at,
+      openedAt: row.opened_at ?? '',
+      openExceptions: (row.exceptions ?? []).filter((e) => e.status === 'open')
+        .length,
+    };
+  });
 }

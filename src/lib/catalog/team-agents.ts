@@ -13,7 +13,13 @@ export interface Agent {
 }
 
 export interface Teammate {
+  /** URL slug and the name people use. */
   key: string;
+  /**
+   * The `teams.key` this persona fronts. Holly is the face of the
+   * "Payroll & Compliance" team row, which predates her name.
+   */
+  dbTeamKey: string | null;
   name: string;
   initial: string;
   /** One-line role, used on the Home strip. */
@@ -29,6 +35,7 @@ export interface Teammate {
 export const TEAMMATES: Teammate[] = [
   {
     key: 'holly',
+    dbTeamKey: 'payroll_compliance',
     name: 'Holly',
     initial: 'H',
     role: 'Payroll and statutory compliance',
@@ -42,7 +49,7 @@ export const TEAMMATES: Teammate[] = [
         name: 'Attendance and leave',
         oneLiner:
           'Reconciles attendance and leave for the month into one loss-of-pay figure per person, and flags anything that does not add up.',
-        requiredCategories: ['people_attendance'],
+        requiredCategories: ['people_data'],
       },
       {
         key: 'structure',
@@ -70,6 +77,7 @@ export const TEAMMATES: Teammate[] = [
   },
   {
     key: 'arjun',
+    dbTeamKey: null,
     name: 'Arjun',
     initial: 'A',
     role: 'Hiring and onboarding',
@@ -80,6 +88,7 @@ export const TEAMMATES: Teammate[] = [
   },
   {
     key: 'mira',
+    dbTeamKey: null,
     name: 'Mira',
     initial: 'M',
     role: 'Records and documents',
@@ -90,6 +99,7 @@ export const TEAMMATES: Teammate[] = [
   },
   {
     key: 'dev',
+    dbTeamKey: null,
     name: 'Dev',
     initial: 'D',
     role: 'Benefits and insurance',
@@ -100,6 +110,7 @@ export const TEAMMATES: Teammate[] = [
   },
   {
     key: 'sana',
+    dbTeamKey: null,
     name: 'Sana',
     initial: 'S',
     role: 'Performance and reviews',
@@ -110,6 +121,7 @@ export const TEAMMATES: Teammate[] = [
   },
   {
     key: 'noor',
+    dbTeamKey: null,
     name: 'Noor',
     initial: 'N',
     role: 'Exits and final settlement',
