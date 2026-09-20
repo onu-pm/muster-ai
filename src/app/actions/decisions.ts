@@ -37,7 +37,7 @@ export async function decideOnException(
   const supabase = await createClient();
   const { data: exception } = await supabase
     .from('exceptions')
-    .select('id, status, kind, conclusion, payload, duty_instances!inner ( org_id )')
+    .select('id, status, kind, conclusion, payload, duty_instances!inner ( id, org_id )')
     .eq('id', exceptionId)
     .eq('duty_instances.org_id', member.orgId)
     .maybeSingle();
@@ -132,6 +132,31 @@ export async function decideOnException(
     .eq('id', exceptionId);
 
   if (closeError) return { ok: false, error: closeError.message };
+
+  /*
+   * A duty is blocked by its open exceptions. Resolving the last one has to
+   * close the duty too, or the work sits in "in flight" as permanently stuck
+   * while the teammate reports themselves clear — which is what it did.
+   */
+  const duty = Array.isArray(exception.duty_instances)
+    ? exception.duty_instances[0]
+    : exception.duty_instances;
+  const dutyId = (duty as { id?: string } | null)?.id;
+
+  if (dutyId) {
+    const { count } = await admin
+      .from('exceptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('duty_instance_id', dutyId)
+      .eq('status', 'open');
+
+    if ((count ?? 0) === 0) {
+      await admin
+        .from('duty_instances')
+        .update({ state: 'closed', closed_at: now })
+        .eq('id', dutyId);
+    }
+  }
 
   revalidatePath('/catchup');
   revalidatePath('/home');

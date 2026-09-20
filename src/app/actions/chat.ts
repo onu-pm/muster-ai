@@ -235,7 +235,14 @@ export async function sendGoal(
 
     if (planned && planned.steps.length > 0) {
       const messages: ThreadMessage[] = [];
-      if (planned.opening) {
+
+      /*
+       * An opening line is written before the work runs, so it cannot know the
+       * answer. On a single-step question that produced "Here's the August
+       * summary" immediately followed by "I haven't gathered August yet".
+       * Only worth saying when several steps are about to happen.
+       */
+      if (planned.opening && planned.steps.length > 1) {
         const owner = listCapabilities().find(
           (c) => c.key === planned.steps[0].capability,
         );
