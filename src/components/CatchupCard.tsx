@@ -40,7 +40,7 @@ export function CatchupCard({ item }: { item: CatchupItem }) {
   }
 
   return (
-    <article className="card card-pad-lg">
+    <article id={`item-${item.id}`} className="card card-pad-lg anchorTarget">
       <div className="row-between wrap" style={{ alignItems: 'flex-start' }}>
         <div className="row" style={{ gap: 10, minWidth: 0 }}>
           {item.personName ? (

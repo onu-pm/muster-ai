@@ -6,6 +6,7 @@ import {
 } from '@/lib/data/catchup';
 import { CatchupCard } from '@/components/CatchupCard';
 import { ComingUpList } from '@/components/ComingUpList';
+import { HashFocus } from '@/components/HashFocus';
 import { countLine, exceptionKindLabel, relativeDay } from '@/lib/copy/labels';
 
 export default async function CatchupPage() {
@@ -19,6 +20,7 @@ export default async function CatchupPage() {
 
   return (
     <>
+      <HashFocus />
       <header className="pageHeader">
         <h1>Catchup</h1>
         <p className="sub">{countLine(needsYou.length)}</p>

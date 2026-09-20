@@ -1,30 +1,34 @@
 :root {
-  --bg: #fcfaf7;
+  --bg: #fbfaf8;
   --surface: #ffffff;
-  --surface-2: #f5efe8;
-  --text: #2b2420;
-  --muted: #8a7d6f;
-  --accent: #c1704a;
-  --accent-hover: #a85c3a;
-  --accent-soft: #f0d9c8;
-  --border: #e8e1d8;
-  --error: #c0392b;
+  --surface-2: #f4f4f1;
+  --text: #1a1c19;
+  --muted: #6f736c;
+  --accent: #1f6f4a;
+  --accent-hover: #18573a;
+  --accent-soft: #e3f0e8;
+  --border: #e3e4df;
+  --error: #b3261e;
   --radius-card: 16px;
   --radius-control: 10px;
 
-  --success: #4c9a63;
-  --success-soft: #e6f1e9;
-  --success-text: #38684a;
-  --warn-soft: #fbeee2;
+  --accent-deep: #123d29;
+  --success: #1f6f4a;
+  --success-soft: #e3f0e8;
+  --success-text: #18573a;
+  --warn: #9a6114;
+  --warn-soft: #fbf0dd;
+  --error-soft: #fbe9e7;
 
   --sidebar-width: 236px;
   --content-max: 880px;
+  --content-max-wide: 1120px;
 
-  --shadow-sm: 0 1px 2px rgba(43, 36, 32, 0.05);
+  --shadow-sm: 0 1px 2px rgba(26, 28, 25, 0.05);
   --shadow-md:
-    0 1px 2px rgba(43, 36, 32, 0.04), 0 6px 16px -6px rgba(43, 36, 32, 0.1);
+    0 1px 2px rgba(26, 28, 25, 0.04), 0 6px 16px -6px rgba(26, 28, 25, 0.1);
   --shadow-lg:
-    0 2px 4px rgba(43, 36, 32, 0.04), 0 16px 32px -12px rgba(43, 36, 32, 0.16);
+    0 2px 4px rgba(26, 28, 25, 0.04), 0 16px 32px -12px rgba(26, 28, 25, 0.16);
 
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 }
@@ -46,12 +50,12 @@ body {
   background-image:
     radial-gradient(
       900px 500px at 12% -10%,
-      rgba(193, 112, 74, 0.05),
+      rgba(31, 111, 74, 0.045),
       transparent 60%
     ),
     radial-gradient(
       700px 420px at 100% 0%,
-      rgba(193, 112, 74, 0.035),
+      rgba(31, 111, 74, 0.028),
       transparent 55%
     );
   background-attachment: fixed;
@@ -324,8 +328,8 @@ select {
   height: 38px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: linear-gradient(140deg, var(--accent-soft), #e7c3ab);
-  color: #8c4526;
+  background: linear-gradient(140deg, var(--accent-soft), #c9e3d5);
+  color: var(--accent-deep);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -368,7 +372,7 @@ select {
 .card-hover:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
-  border-color: #ded5c9;
+  border-color: #d6d8d1;
 }
 
 .card-flat {
@@ -470,11 +474,11 @@ select {
 .btn-primary {
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 1px 2px rgba(168, 92, 58, 0.25);
+  box-shadow: 0 1px 2px rgba(24, 87, 58, 0.22);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
-  box-shadow: 0 3px 10px -2px rgba(168, 92, 58, 0.4);
+  box-shadow: 0 3px 10px -2px rgba(24, 87, 58, 0.34);
 }
 
 .btn-secondary {
@@ -485,7 +489,7 @@ select {
 }
 .btn-secondary:hover:not(:disabled) {
   background: var(--surface-2);
-  border-color: #ded5c9;
+  border-color: #d6d8d1;
 }
 
 .btn-quiet {
@@ -502,12 +506,12 @@ select {
   color: #fff;
 }
 .btn-success:hover:not(:disabled) {
-  background: #3f8253;
+  background: var(--accent-hover);
 }
 
 .btn-danger {
   background: var(--surface);
-  border-color: #eccdc9;
+  border-color: #eccecb;
   color: var(--error);
 }
 .btn-danger:hover:not(:disabled) {
@@ -541,7 +545,7 @@ select {
 
 .input::placeholder,
 .textarea::placeholder {
-  color: #b5a99b;
+  color: #a3a79f;
 }
 
 .input:focus,
@@ -549,7 +553,7 @@ select {
 .select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(193, 112, 74, 0.13);
+  box-shadow: 0 0 0 3px rgba(31, 111, 74, 0.14);
 }
 
 .textarea {
@@ -589,7 +593,7 @@ select {
 
 .tag-accent {
   background: var(--accent-soft);
-  color: #8c4526;
+  color: var(--accent-deep);
 }
 
 .tag-live {
@@ -599,11 +603,11 @@ select {
 
 .tag-warn {
   background: var(--warn-soft);
-  color: #9a5a2c;
+  color: var(--warn);
 }
 
 .tag-error {
-  background: #f8e3e1;
+  background: var(--error-soft);
   color: var(--error);
 }
 
@@ -622,22 +626,22 @@ select {
 
 .statusDot-live {
   background: var(--success);
-  box-shadow: 0 0 0 3px rgba(76, 154, 99, 0.16);
+  box-shadow: 0 0 0 3px rgba(31, 111, 74, 0.16);
 }
 
 .statusDot-busy {
   background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(193, 112, 74, 0.16);
+  box-shadow: 0 0 0 3px rgba(31, 111, 74, 0.16);
   animation: pulse 2s var(--ease) infinite;
 }
 
 @keyframes pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 3px rgba(193, 112, 74, 0.16);
+    box-shadow: 0 0 0 3px rgba(31, 111, 74, 0.16);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(193, 112, 74, 0.05);
+    box-shadow: 0 0 0 6px rgba(31, 111, 74, 0.05);
   }
 }
 
@@ -671,7 +675,7 @@ select {
 .chip[data-active='true'] {
   background: var(--accent-soft);
   border-color: transparent;
-  color: #8c4526;
+  color: var(--accent-deep);
   font-weight: 650;
 }
 
@@ -829,7 +833,7 @@ select {
   border-color: var(--accent);
   box-shadow:
     var(--shadow-md),
-    0 0 0 3px rgba(193, 112, 74, 0.12);
+    0 0 0 3px rgba(31, 111, 74, 0.13);
 }
 
 .goalInput {
@@ -843,7 +847,7 @@ select {
 }
 
 .goalInput::placeholder {
-  color: #b5a99b;
+  color: #a3a79f;
 }
 
 /* ---------- Lists ---------- */
@@ -870,7 +874,7 @@ select {
 }
 
 .banner-error {
-  background: #f8e3e1;
+  background: var(--error-soft);
   color: var(--error);
 }
 
@@ -957,5 +961,170 @@ select {
 
   h1 {
     font-size: 25px;
+  }
+}
+
+/* ---------- Home: the conversation canvas ---------- */
+
+/*
+ * Submitting a goal widens the column in place. The layout's content wrapper
+ * owns the width, so the active thread reaches up and relaxes it rather than
+ * the page being replaced.
+ */
+.contentWrap:has(.threadActive) {
+  max-width: var(--content-max-wide);
+  transition: max-width 0.35s var(--ease);
+}
+
+.teamStrip {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 32px;
+  scrollbar-width: none;
+  transition:
+    margin-bottom 0.3s var(--ease),
+    opacity 0.3s var(--ease);
+}
+
+.teamStrip::-webkit-scrollbar {
+  display: none;
+}
+
+.teamCardStatus {
+  margin-top: 14px;
+  gap: 7px;
+}
+
+.teamCardTag {
+  margin-top: 14px;
+}
+
+/* Collapsed: one line per teammate, so the thread gets the height. */
+.teamStrip[data-collapsed='true'] {
+  margin-bottom: 18px;
+}
+
+.teamStrip[data-collapsed='true'] .teamCard {
+  width: auto;
+  max-width: 230px;
+  padding: 7px 15px 7px 7px;
+  border-radius: 999px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+}
+
+.teamStrip[data-collapsed='true'] .teamCard .avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+}
+
+.teamStrip[data-collapsed='true'] .teamCardRole,
+.teamStrip[data-collapsed='true'] .teamCardTag {
+  display: none;
+}
+
+.teamStrip[data-collapsed='true'] .teamCardHead {
+  gap: 9px;
+}
+
+.teamStrip[data-collapsed='true'] .teamCardStatus {
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
+.teamStrip[data-collapsed='true'] .teamCardStatus .strong {
+  display: none;
+}
+
+.teamStrip[data-collapsed='true'] .cardTitle {
+  font-size: 13.5px;
+}
+
+.teamCard {
+  width: 232px;
+  flex: 0 0 auto;
+  height: 100%;
+  transition:
+    width 0.3s var(--ease),
+    padding 0.3s var(--ease),
+    border-radius 0.3s var(--ease);
+}
+
+.threadPane {
+  min-height: min(56vh, 560px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 18px;
+}
+
+.goalDock {
+  position: sticky;
+  bottom: 18px;
+  z-index: 2;
+}
+
+.goalDock .goalBox {
+  box-shadow: var(--shadow-lg);
+  background: var(--surface);
+}
+
+/* ---------- Catchup: linking work to what is blocking it ---------- */
+
+.blockedRow {
+  transition: background 0.16s var(--ease);
+  border-radius: var(--radius-control);
+  margin: 0 -10px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.blockedRow:hover {
+  background: var(--surface-2);
+}
+
+.anchorTarget {
+  scroll-margin-top: 24px;
+}
+
+@keyframes flash {
+  from {
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  to {
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.anchorTarget:target,
+.anchorTarget.isFocused {
+  animation: flash 1.6s var(--ease);
+}
+
+/* ---------- Loading skeletons ---------- */
+
+.skeleton {
+  border-radius: var(--radius-card);
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    #eceee9 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
   }
 }

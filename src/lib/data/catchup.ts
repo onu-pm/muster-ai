@@ -173,6 +173,8 @@ export interface ComingUpItem {
   dueAt: string | null;
   openedAt: string;
   openExceptions: number;
+  /** The first open exception holding this up, so a blocked row can link to it. */
+  blockingExceptionId: string | null;
 }
 
 export async function listComingUp(orgId: string): Promise<ComingUpItem[]> {
@@ -195,6 +197,7 @@ export async function listComingUp(orgId: string): Promise<ComingUpItem[]> {
     exceptions: { id: string; status: string }[] | null;
   })[]).map((row) => {
     const person = one(row.people);
+    const open = (row.exceptions ?? []).filter((e) => e.status === 'open');
     return {
       id: row.id,
       dutyType: row.duty_type,
@@ -202,8 +205,8 @@ export async function listComingUp(orgId: string): Promise<ComingUpItem[]> {
       state: row.state,
       dueAt: row.due_at,
       openedAt: row.opened_at ?? '',
-      openExceptions: (row.exceptions ?? []).filter((e) => e.status === 'open')
-        .length,
+      openExceptions: open.length,
+      blockingExceptionId: open[0]?.id ?? null,
     };
   });
 }

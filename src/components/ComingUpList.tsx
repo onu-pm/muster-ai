@@ -2,11 +2,24 @@
 
 import { useMemo, useState } from 'react';
 import type { ComingUpItem } from '@/lib/data/catchup';
-import { dutyStateLabel, dutyTypeLabel, relativeDay } from '@/lib/copy/labels';
+import {
+  dutyStateLabel,
+  dutyTypeLabel,
+  pluralise,
+  relativeDay,
+} from '@/lib/copy/labels';
+import { ArrowRightIcon } from '@/components/Icons';
 
 type DateFilter = 'all' | 'overdue' | 'week';
 
-export function ComingUpList({ items }: { items: ComingUpItem[] }) {
+export function ComingUpList({
+  items,
+  onJumpTo,
+}: {
+  items: ComingUpItem[];
+  /** Called when a blocked row jumps to the item holding it up. */
+  onJumpTo?: (exceptionId: string) => void;
+}) {
   const [type, setType] = useState<string>('all');
   const [state, setState] = useState<string>('all');
   const [when, setWhen] = useState<DateFilter>('all');
@@ -94,30 +107,60 @@ export function ComingUpList({ items }: { items: ComingUpItem[] }) {
         </div>
       ) : (
         <div className="card" style={{ padding: '4px 20px' }}>
-          {filtered.map((item) => (
-            <div key={item.id} className="listRow">
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="strong">{dutyTypeLabel(item.dutyType)}</div>
-                <div className="tiny muted">
-                  {item.personName ?? 'Everyone'}
-                  {item.openExceptions > 0
-                    ? ` · ${item.openExceptions} waiting on you`
-                    : ''}
+          {filtered.map((item) => {
+            const blocked = item.state === 'blocked';
+            const target = item.blockingExceptionId
+              ? `#item-${item.blockingExceptionId}`
+              : null;
+
+            const body = (
+              <>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="strong">{dutyTypeLabel(item.dutyType)}</div>
+                  <div className="tiny muted">
+                    {item.personName ?? 'Everyone'}
+                    {item.openExceptions > 0
+                      ? ` · ${pluralise(item.openExceptions, 'item', 'items')} waiting on you`
+                      : ''}
+                  </div>
                 </div>
+
+                <span className={`tag ${blocked ? 'tag-warn' : ''}`}>
+                  {dutyStateLabel(item.state)}
+                </span>
+
+                <span
+                  className="tiny muted"
+                  style={{ minWidth: 88, textAlign: 'right' }}
+                >
+                  {item.dueAt ? relativeDay(item.dueAt) : 'No date set'}
+                </span>
+
+                {/* A blocked row must say what unblocks it, and go there. */}
+                {target ? (
+                  <span className="row tiny strong" style={{ gap: 4, color: 'var(--accent)' }}>
+                    Review
+                    <ArrowRightIcon size={13} />
+                  </span>
+                ) : null}
+              </>
+            );
+
+            return target ? (
+              <a
+                key={item.id}
+                href={target}
+                className="listRow blockedRow"
+                onClick={() => onJumpTo?.(item.blockingExceptionId!)}
+              >
+                {body}
+              </a>
+            ) : (
+              <div key={item.id} className="listRow">
+                {body}
               </div>
-              <span
-                className={`tag ${item.state === 'blocked' ? 'tag-warn' : ''}`}
-              >
-                {dutyStateLabel(item.state)}
-              </span>
-              <span
-                className="tiny muted"
-                style={{ minWidth: 88, textAlign: 'right' }}
-              >
-                {item.dueAt ? relativeDay(item.dueAt) : 'No date set'}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </>
