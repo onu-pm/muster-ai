@@ -183,6 +183,14 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
             className="goalInput"
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
+            // Enter sends, the way it does in any chat. Some browsers don't
+            // implicitly submit a single-input form, so don't rely on it.
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit(e);
+              }
+            }}
             placeholder={
               active
                 ? `Anything else, ${userName}?`
