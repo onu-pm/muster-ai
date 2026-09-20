@@ -137,6 +137,25 @@ table in `src/lib/rules/tax-tables.ts` carries its provenance inline. Summary:
 | ESI ₹21,000 coverage ceiling | **Not verified** — not stated on the ESIC page that was reachable |
 | Income tax slabs, standard deduction, 87A rebate, cess, surcharge, 80C/80D/24(b) caps | **Not verified against a primary source.** incometaxindia.gov.in refuses automated access (HTTP 403). Corroborated only across independent tax publishers. **Re-check these before any real filing.** |
 
+## Two deliberate departures from the brief
+
+- **Palette.** The brief fixed a warm terracotta set (`--accent:#c1704a`,
+  `--surface-2:#f5efe8`). Those beiges read dusty next to the type, so on the
+  owner's call the palette moved to deep forest green on warm paper
+  (`--accent:#1f6f4a`, `--surface-2:#f4f4f1`). Radii, font and the token
+  structure are unchanged, so reverting is a matter of editing `:root`.
+- **Home's goal box.** The spec says the thread appears "in place". It does, and
+  it also widens the column to 1120px and collapses the team strip to single-line
+  pills, so a long conversation is not squeezed into an 880px column.
+
+## Performance
+
+Supabase is hosted in Chennai; Vercel functions default to Washington DC, so
+every query crossed the planet and each page made several sequential round
+trips — 1.8s to 3.4s per page. `vercel.json` pins functions to `bom1` (Mumbai)
+and every route has a loading skeleton. Measured from outside India that is now
+0.8s to 1.2s; from inside India both hops are short, so it is faster again.
+
 ## Deployment
 
 Deployed on Vercel at **https://muster-phi-ruby.vercel.app**, pointed at the
