@@ -39,11 +39,45 @@ npm run dev
 
 ## Database
 
-The Supabase project is pre-existing and already carries migrations `0001`–`0006`.
-This repo does not contain them and never re-runs them. It adds only:
+The Supabase project is pre-existing. Inspecting it (`npm run db:inspect`, or
+`node scripts/inspect-rest.mjs` when no connection string is available) found it
+differs from what the brief described:
 
-- `0007` — `exceptions.kind_label`, the `connections` table, and RLS on
-  `connections` scoped to org membership.
+- **`connections` already exists**, with its own `connection_category`
+  (`people_data｜messaging｜government`) and `connection_status` enums, and no
+  `label` column. The application matches that table; nothing was recreated.
+  Display names come from `src/lib/catalog/providers.ts`, which is a better
+  single source of truth than a column that can drift.
+- **Three tables exist beyond `0006`**: `loans`, `salary_revisions`,
+  `tax_declarations`.
+- **`exceptions` has no `org_id`.** It scopes through
+  `duty_instance_id → duty_instances.org_id`; the subject person is carried in
+  `payload.personName`.
+- **`teams` holds one row, keyed `payroll_compliance`.** Holly is a persona over
+  that team, mapped by `dbTeamKey` in the catalogue.
+
+`0007` therefore adds only what is genuinely missing: `exceptions.kind_label`
+(with a backfill), and INSERT/UPDATE/DELETE policies on `connections` and
+`org_teams`.
+
+### A note on Row Level Security
+
+RLS is enabled on all 20 tables, and members can read. But `connections` and
+`org_teams` have **no INSERT policy**, so every signed-in user gets error
+`42501` when connecting a data source or switching a teammate on. That is what
+`0007` fixes.
+
+Applying `0007` needs a Postgres connection string, which this project has not
+been given. Until it is applied, those two writes go through the service-role
+client in `src/lib/supabase/admin.ts`, guarded by `resolveMemberOrg()` in
+`src/lib/data/guard.ts`: the organisation is resolved from the signed-in user's
+own membership through their RLS-scoped client and is never accepted as an
+argument, so a request cannot reach an organisation the user does not belong to.
+The check is the same one `is_org_member(org_id)` makes, enforced a layer up.
+**Once `0007` is applied, those writes should move back onto the user's own
+client** and the service role should be left to organisation bootstrap alone —
+creating an organisation and its first membership row, which cannot pass a
+membership check by definition.
 
 ## What is deliberately not built
 

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getTeammate } from '@/lib/catalog/team-agents';
+import { resolveMemberOrg } from '@/lib/data/guard';
 
 export interface ActionResult {
   ok: boolean;
@@ -59,19 +60,21 @@ export async function createOrganisation(name: string): Promise<ActionResult> {
   return { ok: true, orgId: org.id as string };
 }
 
-/** Step 2 — switch a teammate on for this organisation. */
-export async function activateTeammate(
-  orgId: string,
-  teamKey: string,
-): Promise<ActionResult> {
+/**
+ * Step 2 — switch a teammate on. The organisation comes from the signed-in
+ * user's own membership, never from the caller.
+ */
+export async function activateTeammate(teamKey: string): Promise<ActionResult> {
   const teammate = getTeammate(teamKey);
   if (!teammate) return { ok: false, error: 'That teammate does not exist.' };
   if (!teammate.live || !teammate.dbTeamKey) {
     return { ok: false, error: `${teammate.name} is not available yet.` };
   }
 
-  const supabase = await createClient();
+  const member = await resolveMemberOrg();
+  if (!member.ok) return { ok: false, error: member.error };
 
+  const supabase = await createClient();
   const { data: team } = await supabase
     .from('teams')
     .select('id')
@@ -85,15 +88,17 @@ export async function activateTeammate(
     };
   }
 
-  const { error } = await supabase.from('org_teams').upsert(
-    {
-      org_id: orgId,
-      team_id: team.id,
-      enabled: true,
-      enabled_at: new Date().toISOString(),
-    },
-    { onConflict: 'org_id,team_id' },
-  );
+  const { error } = await createAdminClient()
+    .from('org_teams')
+    .upsert(
+      {
+        org_id: member.orgId,
+        team_id: team.id,
+        enabled: true,
+        enabled_at: new Date().toISOString(),
+      },
+      { onConflict: 'org_id,team_id' },
+    );
 
   if (error) return { ok: false, error: error.message };
   return { ok: true };

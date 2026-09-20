@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { TEAMMATES, getTeammate, requiredCategories } from '@/lib/catalog/team-agents';
+import { TEAMMATES, getTeammate, essentialCategories } from '@/lib/catalog/team-agents';
 import { PROVIDERS, CATEGORY_LABELS } from '@/lib/catalog/providers';
 import { ProviderCard, type ConnectionState } from '@/components/ProviderCard';
 import { createOrganisation, activateTeammate } from './actions';
@@ -46,7 +46,7 @@ export function OnboardingFlow({
     if (!orgId || !picked) return;
     setError(null);
     startTransition(async () => {
-      const result = await activateTeammate(orgId, picked);
+      const result = await activateTeammate(picked);
       if (!result.ok) {
         setError(result.error ?? 'Could not add that teammate.');
         return;
@@ -61,7 +61,9 @@ export function OnboardingFlow({
     router.refresh();
   }
 
-  const needed = teammate ? requiredCategories(teammate) : [];
+  // Only what she needs to start. Messaging is Pursue's, and every channel is
+  // still coming soon — a section with nothing connectable just stalls setup.
+  const needed = teammate ? essentialCategories(teammate) : [];
   const neededProviders = PROVIDERS.filter((p) => needed.includes(p.category));
   const byCategory = needed.map((category) => ({
     category,
