@@ -125,6 +125,26 @@ Both are fixed, and both are the kind of error worth naming:
    below half of itself. They are now reported as untestable, separately from
    those that genuinely pass.
 
+## The chat is where work happens
+
+Holly plans before she acts, and anything she needs from a person is asked for
+and answered inside the thread. Nobody is ever sent to another screen to finish
+something they started in the chat.
+
+- **Asked to run a month with nothing connected**, she asks for a Remote.com
+  token inline, offers "I keep it in a spreadsheet" as an alternative, takes the
+  answer inline, connects, and resumes the run she was already on. The original
+  goal is held in `ConversationState` so nothing has to be retyped.
+- **Findings she cannot settle** come back as messages with Approve / Reject /
+  That's not right attached. Answering one offers the next. A correction still
+  writes a Fact linked to the decision that produced it.
+- **Recurring work needs permission.** "Run payroll every month on the 25th" is
+  read as a schedule, not a run: Holly states what she would do unattended,
+  shows it in a summary box, and saves nothing until someone says yes.
+
+Links inside the thread exist only for looking at detail — never for completing
+work. Catchup and the Marketplace remain as places to review things later.
+
 ## Where the statutory figures came from
 
 The brief asked for an open reference checked against primary sources. Each
@@ -146,7 +166,9 @@ table in `src/lib/rules/tax-tables.ts` carries its provenance inline. Summary:
   structure are unchanged, so reverting is a matter of editing `:root`.
 - **Home's goal box.** The spec says the thread appears "in place". It does, and
   it also widens the column to 1120px and collapses the team strip to single-line
-  pills, so a long conversation is not squeezed into an 880px column.
+  pills, so a long conversation is not squeezed into an 880px column. The spec's
+  Catchup cards still exist, but they are no longer the only way to decide
+  something — the same decision is offered in the chat where it arose.
 
 ## Performance
 
