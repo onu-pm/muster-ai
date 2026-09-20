@@ -145,6 +145,45 @@ something they started in the chat.
 Links inside the thread exist only for looking at detail — never for completing
 work. Catchup and the Marketplace remain as places to review things later.
 
+## The team, and how they work together
+
+| Teammate | Desk | Agents |
+| --- | --- | --- |
+| **Holly** | Payroll and statutory compliance | Attendance and leave, Pay structure, Tax and declarations, Follow-ups |
+| **Hansel** | Hiring and onboarding | Applications, Offers, Onboarding |
+
+Nobody using Muster picks a teammate. A goal goes to `src/lib/agents/router.ts`,
+which works out which *capabilities* it needs — often spanning both people —
+and they hand off to each other from there. Ask for an offer and Hansel adds the
+candidate, then asks Holly for the pay split, because pay is her desk and he
+does no salary arithmetic at all:
+
+> **you** — prepare an offer for Rahul Menon at 18 lakh as a backend engineer
+> **Hansel** — Rahul Menon is on the list as a candidate.
+> **Hansel** — Offer for Rahul Menon at ₹18,00,000 a year. The split is Holly's call, not mine — passing it to her.
+> **Holly** — On ₹18,00,000 a year, that's ₹75,000 basic, ₹30,000 HRA and ₹45,000 special allowance a month.
+> **Holly** — Basic is 50% of wages, so it clears the statutory half.
+
+A model chooses *which* registered capability runs. It can never invent one, and
+it never supplies a figure: the package above is parsed from the person's own
+words by `readMoney` in `src/lib/agents/parse-input.ts`, and the split comes
+from `src/lib/rules/structure.ts`.
+
+## Open-source code used, and licences checked
+
+Every dependency here was licence-checked before use, because a copyleft licence
+in this codebase would change what Muster itself has to be.
+
+| Project | Licence | What was taken |
+| --- | --- | --- |
+| [perminder-klair/resume-parser](https://github.com/perminder-klair/resume-parser) | **MIT** ✓ | The section-heading dictionary and dictionary-driven extraction approach, rewritten in TypeScript in `src/lib/hiring/cv.ts`. Its network profile-scraping was deliberately dropped — Muster does not fetch a candidate's public profiles. |
+| [openai/openai-agents-python](https://github.com/openai/openai-agents-python) | **MIT** ✓ | The handoff pattern — agents exposing named handoffs rather than one orchestrator knowing everyone's internals — adapted in `src/lib/agents/registry.ts`. Narrower here: capabilities are a fixed declared set, so a model can never name a function. |
+
+**Rejected on licence grounds**, despite being the better parsers:
+
+- [xitanggg/open-resume](https://github.com/xitanggg/open-resume) — **AGPL-3.0**. Copying it would oblige Muster to be AGPL too.
+- [OmkarPathak/pyresparser](https://github.com/OmkarPathak/pyresparser) — **GPL-3.0**. Same problem.
+
 ## Where the statutory figures came from
 
 The brief asked for an open reference checked against primary sources. Each
