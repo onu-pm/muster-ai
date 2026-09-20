@@ -2,7 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { env, supabaseConfigured } from '@/lib/env';
 
-const PUBLIC_PATHS = ['/sign-in', '/sign-up', '/auth'];
+// /api/cron authenticates with its own secret, not a session.
+const PUBLIC_PATHS = ['/sign-in', '/sign-up', '/auth', '/api/cron'];
 
 export default async function proxy(request: NextRequest) {
   if (!supabaseConfigured) return NextResponse.next();

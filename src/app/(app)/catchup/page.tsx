@@ -1,9 +1,6 @@
 import { requireWorkspace } from '@/lib/data/session';
-import {
-  listComingUp,
-  listNeedsYou,
-  listRecentlyResolved,
-} from '@/lib/data/catchup';
+import { listComingUp, listRecentlyResolved } from '@/lib/data/catchup';
+import { buildStandup } from '@/lib/data/standup';
 import { CatchupCard } from '@/components/CatchupCard';
 import { ComingUpList } from '@/components/ComingUpList';
 import { HashFocus } from '@/components/HashFocus';
@@ -12,8 +9,8 @@ import { countLine, exceptionKindLabel, relativeDay } from '@/lib/copy/labels';
 export default async function CatchupPage() {
   const { org } = await requireWorkspace();
 
-  const [needsYou, comingUp, resolved] = await Promise.all([
-    listNeedsYou(org.id),
+  const [standup, comingUp, resolved] = await Promise.all([
+    buildStandup(org.id),
     listComingUp(org.id),
     listRecentlyResolved(org.id),
   ]);
@@ -23,43 +20,84 @@ export default async function CatchupPage() {
       <HashFocus />
       <header className="pageHeader">
         <h1>Catchup</h1>
-        <p className="sub">{countLine(needsYou.length)}</p>
+        <p className="sub">
+          {countLine(standup.totalNeedsYou)} Everyone&rsquo;s reporting in
+          below — what they&rsquo;ve done, what they need from you, what&rsquo;s
+          next.
+        </p>
       </header>
 
       <div className="stack-lg">
+        {standup.teammates.map((mate) => (
+          <section key={mate.key}>
+            <div className="row" style={{ gap: 11, marginBottom: 14 }}>
+              <span className="avatar avatar-sm">{mate.initial}</span>
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="sectionTitle">{mate.name}</div>
+                <div className="tiny muted">{mate.role}</div>
+              </div>
+              {mate.needsYou.length > 0 ? (
+                <span className="tag tag-warn">
+                  {mate.needsYou.length} for you
+                </span>
+              ) : (
+                <span className="tag tag-live">Clear</span>
+              )}
+            </div>
+
+            <div className="standupBody">
+              {mate.did.length > 0 ? (
+                <div className="card-flat" style={{ marginBottom: 12 }}>
+                  <div className="eyebrow" style={{ marginBottom: 6 }}>
+                    Since we last spoke
+                  </div>
+                  {mate.did.map((line, i) => (
+                    <p key={i} className="small" style={{ marginTop: 2 }}>
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+
+              {mate.needsYou.length > 0 ? (
+                <div className="stack" style={{ marginBottom: 12 }}>
+                  {mate.needsYou.map((item) => (
+                    <CatchupCard key={item.id} item={item} />
+                  ))}
+                </div>
+              ) : null}
+
+              {mate.next.length > 0 ? (
+                <div className="card-flat">
+                  <div className="eyebrow" style={{ marginBottom: 6 }}>
+                    Next
+                  </div>
+                  {mate.next.map((line, i) => (
+                    <p key={i} className="small" style={{ marginTop: 2 }}>
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+
+              {mate.quiet ? (
+                <div className="empty" style={{ padding: '20px 18px' }}>
+                  Nothing to report.
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ))}
+
         <section>
           <div className="sectionHead">
-            <div className="sectionTitle">Needs you now</div>
-            {needsYou.length > 0 ? (
-              <span className="tiny muted">
-                Holly has done the work — these need a person.
-              </span>
-            ) : null}
-          </div>
-
-          {needsYou.length === 0 ? (
-            <div className="empty">
-              <div className="emptyTitle">You&rsquo;re all caught up.</div>
-              Holly will put anything she&rsquo;s unsure about right here.
-            </div>
-          ) : (
-            <div className="stack">
-              {needsYou.map((item) => (
-                <CatchupCard key={item.id} item={item} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <div className="sectionHead">
-            <div className="sectionTitle">Coming up</div>
+            <div className="sectionTitle">Everything in flight</div>
           </div>
 
           {comingUp.length === 0 ? (
             <div className="empty">
               <div className="emptyTitle">Nothing in flight.</div>
-              Ask Holly for something on Home and it will show up here.
+              Ask for something on Home and it will show up here.
             </div>
           ) : (
             <ComingUpList items={comingUp} />

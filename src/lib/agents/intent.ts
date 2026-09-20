@@ -52,9 +52,28 @@ export type Intent =
   | StatusIntent
   | UnknownIntent;
 
-const PAYROLL_WORDS = /\b(payroll|salary|salaries|pay run|payrun|process pay)\b/i;
+/*
+ * A payroll RUN is a command, not a topic. "Find the salary of Rahul" mentions
+ * salary and must never start a run — it is a question, and questions go to the
+ * planner, which can reach any teammate's capabilities.
+ *
+ * So this needs an action verb sitting next to the payroll word. Anything else
+ * falls through, deliberately.
+ */
+const RUN_VERB = String.raw`(?:run|process|start|do|execute|kick\s*off|close|finish|schedule|set\s*up)`;
+const PAYROLL_NOUN = String.raw`(?:payroll|pay\s*run|payrun|pay\s*cycle)`;
+
+const PAYROLL_WORDS = new RegExp(
+  `\\b${RUN_VERB}\\b[^.?!]{0,30}\\b${PAYROLL_NOUN}\\b|\\b${PAYROLL_NOUN}\\b[^.?!]{0,15}\\b${RUN_VERB}\\b`,
+  'i',
+);
+
+/** A question is never a command, however many payroll words it contains. */
+const QUESTION_WORDS =
+  /^\s*(?:what|who|when|where|which|how|why|find|show|tell|list|get|can|could|do|does|did|is|are|has|have)\b|\?\s*$/i;
+
 const STATUS_WORDS =
-  /\b(status|pending|waiting|what's happening|whats happening|anything|update|outstanding)\b/i;
+  /\b(status|pending|waiting|what's happening|whats happening|outstanding|anything for me|anything i need)\b/i;
 
 /** Resolves a named month to a concrete year: the most recent one not in the future. */
 export function resolvePeriod(
@@ -77,6 +96,16 @@ const DAY_OF_MONTH = /\b(?:on\s+(?:the\s+)?)?(\d{1,2})(?:st|nd|rd|th)\b/i;
 
 export function readIntent(text: string, now = new Date()): Intent {
   const lower = text.toLowerCase();
+
+  /*
+   * A question is answered, never executed — no exceptions. "What's the payroll
+   * schedule?" must not set one up, and "find the salary of Rahul" must not run
+   * a month. Questions go to the planner, which can reach any teammate and can
+   * still offer to set something up in conversation.
+   */
+  if (QUESTION_WORDS.test(text)) {
+    return STATUS_WORDS.test(lower) ? { kind: 'status' } : { kind: 'unknown' };
+  }
 
   // A recurring payroll instruction is a different thing from running one now:
   // it needs permission before anything is saved.

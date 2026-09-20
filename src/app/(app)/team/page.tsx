@@ -19,7 +19,7 @@ export default async function TeamPage() {
         {teammates.map((mate) => {
           const card = (
             <div
-              className={`card ${mate.active ? 'card-hover' : 'card-dim'}`}
+              className={`card ${mate.live ? 'card-hover' : 'card-dim'}`}
               style={{ height: '100%' }}
             >
               <div className="row">
@@ -51,7 +51,8 @@ export default async function TeamPage() {
             </div>
           );
 
-          return mate.active ? (
+          // Anyone who exists can be opened — that is where you add them.
+          return mate.live ? (
             <Link key={mate.key} href={`/team/${mate.key}`}>
               {card}
             </Link>

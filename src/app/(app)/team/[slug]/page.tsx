@@ -10,6 +10,7 @@ import { requiredCategories } from '@/lib/catalog/team-agents';
 import { PROVIDERS, CATEGORY_LABELS } from '@/lib/catalog/providers';
 import { ProviderCard } from '@/components/ProviderCard';
 import { RulesTab } from '@/components/RulesTab';
+import { TeammateToggle } from '@/components/TeammateControls';
 import { ActivityTab } from '@/components/ActivityTab';
 import {
   formatDate,
@@ -22,13 +23,16 @@ import {
   taxRegimeLabel,
 } from '@/lib/copy/labels';
 
-const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'sources', label: 'Data sources' },
-  { key: 'rules', label: 'Rules' },
-  { key: 'knows', label: 'What Holly knows' },
-  { key: 'activity', label: 'Activity' },
-] as const;
+/** Tabs are per teammate, so the labels carry their name rather than Holly's. */
+function tabsFor(name: string) {
+  return [
+    { key: 'overview', label: 'Overview' },
+    { key: 'sources', label: 'Data sources' },
+    { key: 'rules', label: 'Rules' },
+    { key: 'knows', label: `What ${name} knows` },
+    { key: 'activity', label: 'Activity' },
+  ] as const;
+}
 
 export default async function TeammatePage({
   params,
@@ -42,26 +46,40 @@ export default async function TeammatePage({
   const { org } = await requireWorkspace();
 
   const mate = await getTeammateWithState(org.id, slug);
-  if (!mate || !mate.active) notFound();
+  if (!mate || !mate.live) notFound();
 
-  const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : 'overview';
+  const tabs = tabsFor(mate.name);
+  const tab = tabs.some((t) => t.key === rawTab) ? rawTab! : 'overview';
   const tabLabel = (key: string) =>
-    TABS.find((t) => t.key === key)?.label ?? key;
+    tabs.find((t) => t.key === key)?.label ?? key;
 
   return (
     <>
       <header className="row" style={{ gap: 16, marginBottom: 26 }}>
         <span className="avatar avatar-lg">{mate.initial}</span>
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0 }} className="grow">
           <h1>{mate.name}</h1>
           <p className="muted small" style={{ marginTop: 2 }}>
             {mate.role}
           </p>
         </div>
+        <TeammateToggle
+          teamKey={mate.key}
+          name={mate.name}
+          active={mate.active}
+          live={mate.live}
+        />
       </header>
 
+      {!mate.active ? (
+        <div className="banner" style={{ marginBottom: 22 }}>
+          {mate.name} isn&rsquo;t on your team yet. Everything below is what
+          they&rsquo;d bring.
+        </div>
+      ) : null}
+
       <nav className="tabBar" aria-label={`${mate.name} sections`}>
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <Link
             key={t.key}
             href={`/team/${mate.key}?tab=${t.key}`}
@@ -78,7 +96,9 @@ export default async function TeammatePage({
         {tabLabel(tab)}
       </h2>
 
-      {tab === 'overview' ? <Overview mate={mate} /> : null}
+      {tab === 'overview' ? (
+        <Overview mate={mate} orgId={org.id} />
+      ) : null}
       {tab === 'sources' ? <Sources orgId={org.id} mate={mate} /> : null}
       {tab === 'rules' ? <Rules orgId={org.id} mateName={mate.name} /> : null}
       {tab === 'knows' ? <Knows orgId={org.id} mateName={mate.name} /> : null}
@@ -89,13 +109,19 @@ export default async function TeammatePage({
 
 /* ---------------- Overview ---------------- */
 
-function Overview({
+async function Overview({
   mate,
+  orgId,
 }: {
-  mate: Awaited<ReturnType<typeof getTeammateWithState>> & object;
+  mate: NonNullable<Awaited<ReturnType<typeof getTeammateWithState>>>;
+  orgId: string;
 }) {
   const visible = mate.agents.filter((a) => !a.internal);
   const behind = mate.agents.filter((a) => a.internal);
+  const connections = await listConnections(orgId);
+  const connected = new Set(
+    connections.filter((c) => c.status === 'connected').map((c) => c.providerKey),
+  );
 
   return (
     <>
@@ -104,14 +130,37 @@ function Overview({
       </p>
 
       <div className="grid-3" style={{ marginTop: 24 }}>
-        {visible.map((agent) => (
-          <div key={agent.key} className="card">
-            <div className="cardTitle">{agent.name}</div>
-            <p className="cardBody" style={{ marginTop: 8 }}>
-              {agent.oneLiner}
-            </p>
-          </div>
-        ))}
+        {visible.map((agent) => {
+          // What this agent needs, and whether anything satisfying it is on.
+          const needs = agent.requiredCategories;
+          const met = needs.every((category) =>
+            PROVIDERS.some(
+              (p) => p.category === category && connected.has(p.key),
+            ),
+          );
+
+          return (
+            <div key={agent.key} className="card">
+              <div className="cardTitle">{agent.name}</div>
+              <p className="cardBody" style={{ marginTop: 8 }}>
+                {agent.oneLiner}
+              </p>
+              <div style={{ marginTop: 12 }}>
+                {needs.length === 0 ? (
+                  <span className="tag tag-live">Ready</span>
+                ) : met ? (
+                  <span className="tag tag-live">
+                    Connected to {needs.map((c) => CATEGORY_LABELS[c]).join(', ').toLowerCase()}
+                  </span>
+                ) : (
+                  <Link href={`/team/${mate.key}?tab=sources`} className="tag tag-warn">
+                    Needs {needs.map((c) => CATEGORY_LABELS[c]).join(', ').toLowerCase()}
+                  </Link>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {behind.length > 0 ? (

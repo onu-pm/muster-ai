@@ -11,6 +11,7 @@ export { readMoney, readPersonName } from './parse-input';
 // Importing these registers their capabilities.
 import './holly-capabilities';
 import './hansel';
+import './query-capabilities';
 
 /**
  * Who picks a goal up, and in what order.
@@ -123,6 +124,8 @@ export async function runPlan(
     // Overwrite anything the model may have filled in for these.
     if (money !== null) input.annualCtc = money;
     if (person) input.name = person;
+    // Query capabilities read the period out of the original wording themselves.
+    input.text = originalText;
 
     const result = await ctx.invoke(step.capability, input);
     messages.push(...result.messages);

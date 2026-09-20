@@ -1156,3 +1156,11 @@ select {
   max-width: 560px;
   width: 100%;
 }
+
+/* ---------- Catchup as a standup ---------- */
+
+.standupBody {
+  padding-left: 15px;
+  border-left: 2px solid var(--border);
+  margin-left: 13px;
+}
