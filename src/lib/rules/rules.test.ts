@@ -18,7 +18,7 @@ import {
   rebate87A,
   taxOnSlabs,
 } from './tax';
-import { readIntent, resolvePeriod } from '@/lib/agents/intent';
+import { readIntent, resolvePeriod, ordinal } from '@/lib/agents/intent';
 
 describe('wage definition — the 50% test', () => {
   it('passes when basic and DA are at least half of remuneration', () => {
@@ -388,6 +388,44 @@ describe('reading what someone typed', () => {
   it('separates a status question from a payroll run', () => {
     expect(readIntent("what's pending?", now).kind).toBe('status');
     expect(readIntent('tell me a joke', now).kind).toBe('unknown');
+  });
+
+  it('tells a recurring instruction apart from a one-off run', () => {
+    const once = readIntent('Run September payroll', now);
+    expect(once.kind).toBe('run_payroll');
+
+    const repeating = readIntent('Run payroll every month on the 25th', now);
+    expect(repeating.kind).toBe('schedule_payroll');
+    if (repeating.kind === 'schedule_payroll') {
+      expect(repeating.day).toBe(25);
+      expect(repeating.cadenceLabel).toBe('the 25th of each month');
+    }
+  });
+
+  it('reads the other ways people phrase a schedule', () => {
+    for (const phrase of [
+      'run payroll monthly on the 1st',
+      'schedule payroll for the 3rd each month',
+      'from now on run payroll on the 22nd',
+    ]) {
+      expect(readIntent(phrase, now).kind).toBe('schedule_payroll');
+    }
+  });
+
+  it('falls back to the 1st when no day is given, never to a guess', () => {
+    const intent = readIntent('run payroll every month', now);
+    if (intent.kind === 'schedule_payroll') expect(intent.day).toBe(1);
+  });
+
+  it('refuses a day that cannot exist in every month', () => {
+    const intent = readIntent('run payroll every month on the 31st', now);
+    if (intent.kind === 'schedule_payroll') expect(intent.day).toBe(1);
+  });
+
+  it('writes ordinals the way a person would', () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23].map(ordinal)).toEqual([
+      '1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd',
+    ]);
   });
 
   it('resolves a period without guessing a future year', () => {

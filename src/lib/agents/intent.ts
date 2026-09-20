@@ -29,6 +29,15 @@ export interface PayrollIntent {
   periodLabel: string;
 }
 
+export interface SchedulePayrollIntent {
+  kind: 'schedule_payroll';
+  /** Day of the month the run should happen on. */
+  day: number;
+  recurrence: 'monthly';
+  /** "the 25th of each month" */
+  cadenceLabel: string;
+}
+
 export interface StatusIntent {
   kind: 'status';
 }
@@ -37,7 +46,11 @@ export interface UnknownIntent {
   kind: 'unknown';
 }
 
-export type Intent = PayrollIntent | StatusIntent | UnknownIntent;
+export type Intent =
+  | PayrollIntent
+  | SchedulePayrollIntent
+  | StatusIntent
+  | UnknownIntent;
 
 const PAYROLL_WORDS = /\b(payroll|salary|salaries|pay run|payrun|process pay)\b/i;
 const STATUS_WORDS =
@@ -56,8 +69,30 @@ export function resolvePeriod(
   return { month: monthIndex + 1, year };
 }
 
+const RECURRING_WORDS =
+  /\b(every month|each month|monthly|recurring|repeat|schedule|automatically|from now on)\b/i;
+
+/** "on the 25th", "on 25th", "every 3rd" */
+const DAY_OF_MONTH = /\b(?:on\s+(?:the\s+)?)?(\d{1,2})(?:st|nd|rd|th)\b/i;
+
 export function readIntent(text: string, now = new Date()): Intent {
   const lower = text.toLowerCase();
+
+  // A recurring payroll instruction is a different thing from running one now:
+  // it needs permission before anything is saved.
+  if (PAYROLL_WORDS.test(lower) && RECURRING_WORDS.test(lower)) {
+    const match = lower.match(DAY_OF_MONTH);
+    const parsed = match ? Number(match[1]) : Number.NaN;
+    const day =
+      Number.isFinite(parsed) && parsed >= 1 && parsed <= 28 ? parsed : 1;
+
+    return {
+      kind: 'schedule_payroll',
+      day,
+      recurrence: 'monthly',
+      cadenceLabel: `the ${ordinal(day)} of each month`,
+    };
+  }
 
   if (PAYROLL_WORDS.test(lower)) {
     const monthIndex = MONTHS.findIndex((m) => lower.includes(m));
@@ -92,4 +127,19 @@ function lastCompleteMonth(now: Date): { month: number; at: Date } {
 
 function capitalise(value: string): string {
   return value.replace(/^./, (c) => c.toUpperCase());
+}
+
+export function ordinal(n: number): string {
+  const rest = n % 100;
+  if (rest >= 11 && rest <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
 }

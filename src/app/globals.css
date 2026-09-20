@@ -1128,3 +1128,31 @@ select {
     background-position: 0 0;
   }
 }
+
+/* ---------- Inline actions inside the thread ---------- */
+
+.msg-agent .msgActions .input,
+.msg-agent .msgActions .textarea {
+  background: var(--bg);
+}
+
+.msg-agent .msgActions .label {
+  margin-top: 4px;
+}
+
+.authoriseBox {
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent-deep);
+}
+
+/* A message carrying a question needs more room than a one-liner. */
+.msg-agent:has(.msgActions form),
+.msg-agent:has(.authoriseBox) {
+  max-width: 560px;
+  width: 100%;
+}

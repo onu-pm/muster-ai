@@ -1,27 +1,41 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import Link from 'next/link';
 import { SendIcon, SpinnerIcon } from '@/components/Icons';
-import { runGoal, type ThreadMessage } from '@/app/actions/goal';
+import { InlineActions } from '@/components/chat/InlineActions';
+import {
+  authoriseSchedule,
+  connectFromChat,
+  decideFromChat,
+  sendGoal,
+} from '@/app/actions/chat';
+import {
+  EMPTY_STATE,
+  type ConversationState,
+  type ThreadMessage,
+  type TurnResult,
+} from '@/lib/agents/conversation';
 
 interface Props {
   userName: string;
-  /** Server-rendered team strip and "what's happening" list. */
   strip: React.ReactNode;
   happening: React.ReactNode;
 }
 
 /**
- * Home, and the conversation it turns into.
+ * Home, and the conversation it becomes.
  *
- * Submitting a goal does not navigate anywhere: the column widens, the team
- * strip shrinks to a single line, and the thread grows to fill the space with
- * the input pinned beneath it. Nothing is lost, and Home is still Home.
+ * Once someone starts a thread they should not have to leave it. Holly asks for
+ * whatever she needs right here — a token, a decision, permission to schedule —
+ * and the answer is given here. The column widens and the team strip collapses
+ * so the conversation has room, but nothing navigates away.
  */
 export function HomeCanvas({ userName, strip, happening }: Props) {
   const [goal, setGoal] = useState('');
   const [thread, setThread] = useState<ThreadMessage[]>([]);
+  const [state, setState] = useState<ConversationState>(EMPTY_STATE);
+  /** Indexes whose inline action has been used, so it cannot be used twice. */
+  const [spent, setSpent] = useState<Set<number>>(new Set());
   const [pending, startTransition] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +45,15 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
     if (active) endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [thread, pending, active]);
 
+  function apply(result: TurnResult) {
+    setThread((t) => [...t, ...result.messages]);
+    setState(result.state);
+  }
+
+  function spend(index: number) {
+    setSpent((s) => new Set(s).add(index));
+  }
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const text = goal.trim();
@@ -38,11 +61,69 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
 
     setThread((t) => [...t, { from: 'you', body: text }]);
     setGoal('');
+    startTransition(async () => apply(await sendGoal(text, state)));
+  }
 
-    startTransition(async () => {
-      const replies = await runGoal(text);
-      setThread((t) => [...t, ...replies]);
-    });
+  function handleConnect(
+    index: number,
+    providerKey: string,
+    credentials: Record<string, string>,
+  ) {
+    spend(index);
+    setThread((t) => [
+      ...t,
+      { from: 'you', body: 'Connecting that now.' },
+    ]);
+    startTransition(async () =>
+      apply(await connectFromChat(providerKey, credentials, state)),
+    );
+  }
+
+  function handleDecide(
+    index: number,
+    exceptionId: string,
+    outcome: 'approved' | 'rejected' | 'corrected',
+    note?: string,
+  ) {
+    spend(index);
+    setThread((t) => [
+      ...t,
+      {
+        from: 'you',
+        body:
+          outcome === 'corrected'
+            ? (note ?? 'Correcting that.')
+            : outcome === 'approved'
+              ? 'Approve'
+              : 'Reject',
+      },
+    ]);
+    startTransition(async () =>
+      apply(await decideFromChat(exceptionId, outcome, note, state)),
+    );
+  }
+
+  function handleAuthorise(index: number) {
+    spend(index);
+    setThread((t) => [...t, { from: 'you', body: 'Yes, set it up.' }]);
+    startTransition(async () => apply(await authoriseSchedule(state)));
+  }
+
+  function handleChoose(index: number, value: string) {
+    spend(index);
+    if (value === 'decline_schedule') {
+      setThread((t) => [
+        ...t,
+        { from: 'you', body: 'Not now.' },
+        {
+          from: 'Holly',
+          body: "No problem — nothing saved. Ask me whenever you want it running on its own.",
+        },
+      ]);
+      setState((s) => ({ ...s, awaiting: null }));
+      return;
+    }
+    startTransition(async () => apply(await sendGoal(value, state)));
   }
 
   return (
@@ -63,15 +144,19 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
                   <div className="msgWho">{msg.from}</div>
                 ) : null}
                 <div>{msg.body}</div>
-                {msg.link ? (
-                  <div className="msgActions">
-                    <Link
-                      className="btn btn-secondary btn-sm"
-                      href={msg.link.href}
-                    >
-                      {msg.link.label}
-                    </Link>
-                  </div>
+
+                {msg.action ? (
+                  <InlineActions
+                    action={msg.action}
+                    busy={pending}
+                    spent={spent.has(i)}
+                    onConnect={(key, creds) => handleConnect(i, key, creds)}
+                    onDecide={(id, outcome, note) =>
+                      handleDecide(i, id, outcome, note)
+                    }
+                    onAuthorise={() => handleAuthorise(i)}
+                    onChoose={(value) => handleChoose(i, value)}
+                  />
                 ) : null}
               </div>
             ))}
@@ -114,8 +199,7 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
         </div>
         {!active ? (
           <p className="tiny muted" style={{ marginTop: 10, paddingLeft: 4 }}>
-            Holly picks it up from here and brings back anything she can&rsquo;t
-            settle on her own.
+            Whatever Holly needs from you, she&rsquo;ll ask right here.
           </p>
         ) : null}
       </form>
