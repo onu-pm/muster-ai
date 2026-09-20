@@ -21,17 +21,13 @@ export const env = {
   get openRouterKey() {
     return process.env.OPENROUTER_API_KEY ?? '';
   },
+  /** Extraction and other routine reading. Verified against OpenRouter's live list. */
   get modelRoutine() {
-    return (
-      process.env.MODEL_ROUTINE ??
-      'nvidia/nemotron-nano-9b-v2:free'
-    );
+    return process.env.MODEL_ROUTINE ?? 'nvidia/nemotron-3-super-120b-a12b:free';
   },
+  /** Reserved for the harder calls. Slower, so not used for interactive work. */
   get modelJudgment() {
-    return (
-      process.env.MODEL_JUDGMENT ??
-      'nvidia/nemotron-nano-9b-v2:free'
-    );
+    return process.env.MODEL_JUDGMENT ?? 'nvidia/nemotron-3-ultra-550b-a55b:free';
   },
   get remoteApiToken() {
     return process.env.REMOTE_API_TOKEN ?? '';

@@ -29,7 +29,8 @@ export function Sidebar({ orgName, userEmail, needsYouCount }: Props) {
   return (
     <nav className="sidebar" aria-label="Main">
       <div className="wordmark" aria-label="Muster">
-        M<span>uster</span>
+        <span className="wordmarkDot" aria-hidden />
+        <span>Muster</span>
       </div>
 
       <div className="navList">
