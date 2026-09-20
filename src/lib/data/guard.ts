@@ -14,7 +14,14 @@ import { createClient } from '@/lib/supabase/server';
  * applied, these writes can move back onto the user's own client.
  */
 export async function resolveMemberOrg(): Promise<
-  { ok: true; orgId: string; userId: string } | { ok: false; error: string }
+  | {
+      ok: true;
+      orgId: string;
+      orgName: string;
+      userId: string;
+      userName: string;
+    }
+  | { ok: false; error: string }
 > {
   const supabase = await createClient();
   const {
@@ -27,7 +34,7 @@ export async function resolveMemberOrg(): Promise<
 
   const { data: membership } = await supabase
     .from('org_members')
-    .select('org_id')
+    .select('org_id, organisations ( name )')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
@@ -37,5 +44,22 @@ export async function resolveMemberOrg(): Promise<
     return { ok: false, error: 'You are not part of an organisation yet.' };
   }
 
-  return { ok: true, orgId: membership.org_id as string, userId: user.id };
+  const joined = membership.organisations as
+    | { name: string }
+    | { name: string }[]
+    | null;
+  const org = Array.isArray(joined) ? joined[0] : joined;
+
+  const meta = user.user_metadata as Record<string, unknown> | null;
+  const full = typeof meta?.full_name === 'string' ? meta.full_name.trim() : '';
+  const userName =
+    full.split(/\s+/)[0] || (user.email ?? 'there').split('@')[0];
+
+  return {
+    ok: true,
+    orgId: membership.org_id as string,
+    orgName: org?.name ?? 'your organisation',
+    userId: user.id,
+    userName,
+  };
 }

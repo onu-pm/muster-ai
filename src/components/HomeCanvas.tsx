@@ -59,9 +59,10 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
     const text = goal.trim();
     if (!text || pending) return;
 
+    const history = thread.map((m) => ({ from: m.from, body: m.body }));
     setThread((t) => [...t, { from: 'you', body: text }]);
     setGoal('');
-    startTransition(async () => apply(await sendGoal(text, state)));
+    startTransition(async () => apply(await sendGoal(text, state, history)));
   }
 
   function handleConnect(

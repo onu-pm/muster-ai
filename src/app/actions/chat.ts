@@ -19,6 +19,8 @@ import {
   type TurnResult,
 } from '@/lib/agents/conversation';
 import { dutyTypeLabel, pluralise } from '@/lib/copy/labels';
+import { buildFactsheet } from '@/lib/agents/factsheet';
+import { converse } from '@/lib/agents/converse';
 
 /**
  * Holly's side of the conversation.
@@ -165,10 +167,38 @@ async function executePayroll(
   return messages;
 }
 
+/** Everything waiting on a decision, offered inline. */
+async function offerDecisions(
+  orgId: string,
+  lead: string,
+): Promise<ThreadMessage[]> {
+  const open = await listNeedsYou(orgId);
+  if (open.length === 0) {
+    return [{ from: 'Holly', body: 'Nothing is waiting on you right now.' }];
+  }
+
+  const messages: ThreadMessage[] = [{ from: 'Holly', body: lead }];
+
+  for (const item of open.slice(0, INLINE_DECISION_LIMIT)) {
+    messages.push({
+      from: 'Holly',
+      body: item.conclusion,
+      action: {
+        kind: 'decide',
+        exceptionId: item.id,
+        about: item.personName ?? 'this',
+      },
+    });
+  }
+
+  return messages;
+}
+
 /** Entry point for anything typed into the chat. */
 export async function sendGoal(
   text: string,
   incoming: ConversationState = EMPTY_STATE,
+  history: { from: string; body: string }[] = [],
 ): Promise<TurnResult> {
   const member = await resolveMemberOrg();
   if (!member.ok) {
@@ -180,6 +210,111 @@ export async function sendGoal(
 
   const intent = readIntent(text);
   const state: ConversationState = { ...incoming };
+
+  /*
+   * Anything the keyword reader does not recognise used to fall into a single
+   * canned reply, so every unrecognised message got the same answer. It now
+   * goes to Holly, who either answers it or hands back one of the actions
+   * below. The deterministic reader still wins when it matches, because those
+   * paths execute real work and must not depend on a model.
+   */
+  if (intent.kind === 'unknown') {
+    const facts = await buildFactsheet(
+      member.orgId,
+      member.orgName,
+      member.userName,
+    );
+    const spoken = await converse(text, facts, history);
+
+    if (spoken.action === 'answer') {
+      return {
+        messages: spoken.messages.map((body) => ({
+          from: 'Holly' as const,
+          body,
+        })),
+        state,
+      };
+    }
+
+    if (spoken.action === 'review_items') {
+      return {
+        messages: [
+          ...spoken.messages.map((body) => ({ from: 'Holly' as const, body })),
+          ...(await offerDecisions(
+            member.orgId,
+            "Here's the first one.",
+          )),
+        ],
+        state,
+      };
+    }
+
+    // Holly read it as a command the keyword reader missed. Re-read the same
+    // text for the period or day, so no figure comes from the model.
+    const reread = readIntent(
+      spoken.action === 'schedule_payroll'
+        ? `${text} every month`
+        : `${text} payroll`,
+    );
+
+    const lead = spoken.messages.map((body) => ({
+      from: 'Holly' as const,
+      body,
+    }));
+
+    if (reread.kind === 'schedule_payroll') {
+      state.intent = 'schedule_payroll';
+      state.scheduleDay = reread.day;
+      state.recurrence = reread.recurrence;
+      state.awaiting = 'schedule';
+      return {
+        messages: [
+          ...lead,
+          {
+            from: 'Holly',
+            body: `That would run on ${reread.cadenceLabel}, without you here — so I need your say-so first.`,
+            action: {
+              kind: 'authorise',
+              summary: `Run payroll on ${reread.cadenceLabel}, and bring anything uncertain to you`,
+            },
+          },
+        ],
+        state,
+      };
+    }
+
+    if (reread.kind === 'run_payroll') {
+      const period = {
+        month: reread.month,
+        year: reread.year,
+        label: reread.periodLabel,
+      };
+      state.intent = 'run_payroll';
+      state.period = period;
+
+      const sources = await connectedSources(member.orgId);
+      if (!sources.some((key) => ATTENDANCE_SOURCES.includes(key))) {
+        state.awaiting = 'connection';
+        return {
+          messages: [...lead, askForConnection(period.label)],
+          state,
+        };
+      }
+
+      state.awaiting = null;
+      return {
+        messages: [...lead, ...(await executePayroll(member.orgId, period))],
+        state,
+      };
+    }
+
+    return {
+      messages: lead.length
+        ? lead
+        : [{ from: 'Holly', body: "I'm not sure what you'd like me to do." }],
+      state,
+    };
+  }
 
   if (intent.kind === 'run_payroll') {
     const period = {
@@ -289,15 +424,8 @@ export async function sendGoal(
     return { messages, state };
   }
 
-  return {
-    messages: [
-      {
-        from: 'Holly',
-        body: "I look after payroll and statutory compliance — attendance and leave, pay structures, tax declarations and what gets filed. Ask me to run a month, set it to run every month, or ask what's pending.",
-      },
-    ],
-    state,
-  };
+  // Every remaining intent is handled above.
+  return { messages: [], state };
 }
 
 /** A data source connected from inside the conversation. */
@@ -449,7 +577,7 @@ export async function authoriseSchedule(
     messages: [
       {
         from: 'Holly',
-        body: `Saved. I'll start the run on the ${ordinal(day)} of each month, beginning ${next.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}. You'll hear from me here when there's something to decide — I won't pay anyone without you.`,
+        body: `Saved — it's on the calendar for the ${ordinal(day)} of each month, starting ${next.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}. One thing to be straight about: nothing kicks it off automatically yet, so on the day you'll still need to tell me to go. I won't pay anyone without you either way.`,
       },
     ],
     state,
