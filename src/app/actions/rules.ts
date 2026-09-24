@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveMemberOrg } from '@/lib/data/guard';
-import { completeJson, ModelUnavailableError } from '@/lib/ai/openrouter';
+import { z } from 'zod';
+import { generateStructured, ModelUnavailableError } from '@/lib/ai/openrouter';
 import { RULE_LABELS } from '@/lib/copy/labels';
 
 export interface ProposeResult {
@@ -12,15 +13,26 @@ export interface ProposeResult {
   message?: string;
 }
 
-interface ExtractedRule {
-  rule_key: string | null;
-  label: string | null;
-  scope: 'statutory' | 'policy' | null;
-  jurisdiction: string | null;
-  effective_from: string | null;
-  definition: Record<string, unknown> | null;
-  unreadable?: string | null;
-}
+const ExtractedRuleSchema = z.object({
+  rule_key: z.string().nullable(),
+  label: z.string().nullable().describe('A short human title taken from the text'),
+  scope: z.enum(['statutory', 'policy']).nullable(),
+  jurisdiction: z
+    .string()
+    .nullable()
+    .describe('"IN-<state code>" if a state is named, "IN-national" if nationwide'),
+  effective_from: z.string().nullable().describe('YYYY-MM-DD only if stated'),
+  definition: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .describe('The figures exactly as stated'),
+  unreadable: z
+    .string()
+    .nullable()
+    .describe('Anything that could not be read, else null'),
+});
+
+type ExtractedRule = z.infer<typeof ExtractedRuleSchema>;
 
 const SYSTEM = `You read a fragment of an Indian payroll calculation sheet and turn it into a structured rule.
 
@@ -28,20 +40,10 @@ Rules you must follow:
 - Extract ONLY what the text literally states. Never infer a figure, a state, a date or a threshold that is not written down.
 - If something is not stated, use null. Do not guess.
 - Never invent slabs, caps or rates from your own knowledge of Indian tax law.
-- Reply with a single JSON object and nothing else.
-
-Shape:
-{
-  "rule_key": one of ${Object.keys(RULE_LABELS)
-    .map((k) => `"${k}"`)
-    .join(', ')} or null if none fits,
-  "label": a short human title taken from the text,
-  "scope": "statutory" if it restates a law, "policy" if it is this company's own choice, else null,
-  "jurisdiction": "IN-<state code>" if a state is named, "IN-national" if explicitly nationwide, else null,
-  "effective_from": "YYYY-MM-DD" only if a date is stated, else null,
-  "definition": the figures exactly as stated, as JSON,
-  "unreadable": a short sentence naming anything you could not read, else null
-}`;
+- "rule_key" must be one of ${Object.keys(RULE_LABELS)
+  .map((k) => `"${k}"`)
+  .join(', ')}, or null if none fits.
+- "scope" is "statutory" if it restates a law, "policy" if it is this company's own choice.`;
 
 export async function proposeRuleFromSheet(
   sheet: string,
@@ -62,9 +64,11 @@ export async function proposeRuleFromSheet(
 
   let extracted: ExtractedRule;
   try {
-    extracted = await completeJson<ExtractedRule>({
+    extracted = await generateStructured({
+      schema: ExtractedRuleSchema,
       system: SYSTEM,
-      user: text,
+      prompt: text,
+      temperature: 0,
     });
   } catch (error) {
     if (error instanceof ModelUnavailableError) {

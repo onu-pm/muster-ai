@@ -1,4 +1,7 @@
 import 'server-only';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { generateObject, streamText, type LanguageModel } from 'ai';
+import type { z } from 'zod';
 import { env } from '@/lib/env';
 
 /**
@@ -6,12 +9,12 @@ import { env } from '@/lib/env';
  *
  * Models read unstructured text and draft language. They never produce a figure
  * that reaches a payslip — anything arithmetic is computed by the rule code in
- * `src/lib/rules`, which is unit-tested. Extraction returns what a document
- * says; whether that is correct, and what it is worth, is decided elsewhere.
+ * `src/lib/rules`, which is unit-tested.
  *
- * The free Nemotron tier returns its chain of thought in a separate `reasoning`
- * field and intermittently refuses with an upstream capacity error, so calls
- * retry with backoff and only ever read `content`.
+ * Built on the Vercel AI SDK (Apache-2.0) through the OpenRouter provider
+ * (Apache-2.0). The SDK gives schema-validated structured output and token
+ * streaming; what it does not give is failover between models, and the free
+ * Nemotron tier refuses a large share of requests, so that part stays ours.
  */
 
 export class ModelUnavailableError extends Error {
@@ -21,165 +24,144 @@ export class ModelUnavailableError extends Error {
   }
 }
 
-interface CompleteOptions {
-  system: string;
-  user: string;
-  model?: string;
-  maxTokens?: number;
-  attempts?: number;
-  temperature?: number;
-}
-
-const UPSTREAM_TROUBLE =
-  /upstream error|resourceexhausted|temporarily overloaded|rate.?limit|capacity/i;
-
 /**
- * The free Nemotron tier refuses a large share of requests with an upstream
- * capacity error, so a single model is not dependable enough to talk through.
- * Each attempt moves to the next model in the chain before backing off — all
- * free Nemotron, as the brief requires.
+ * Both measured on this account: super ~2.7s, ultra ~4s, both returning clean
+ * structured output. Deliberately excluded — lightning (~40s, too slow to
+ * converse through) and nano-omni (returns reasoning and an empty body).
  */
 const FALLBACK_CHAIN = [
-  // ~2.7s, clean JSON.
   'nvidia/nemotron-3-super-120b-a12b:free',
-  // ~4s, clean JSON.
   'nvidia/nemotron-3-ultra-550b-a55b:free',
 ];
 
-/*
- * Deliberately not in the chain, both measured on this account:
- *   nemotron-3.5-lightning:free — ~40s, too slow to converse through.
- *   nemotron-3-nano-omni:free   — returns its reasoning and an empty content.
- */
-
-/**
- * A model that stalls must not hold up a reply, but this has to sit above how
- * long a real answer takes: measured on this account, a full prompt against
- * nemotron-3-super lands in roughly 10-15s. A tighter bound aborted healthy
- * calls and made every reply slower, not faster.
- */
-const REQUEST_TIMEOUT_MS = 30_000;
-
-function modelChain(preferred: string): string[] {
+function chainFrom(preferred: string): string[] {
   return [preferred, ...FALLBACK_CHAIN.filter((m) => m !== preferred)];
 }
 
-export async function complete({
-  system,
-  user,
-  model,
-  maxTokens = 900,
-  attempts = 2,
-  temperature = 0,
-}: CompleteOptions): Promise<string> {
+function provider() {
   if (!env.openRouterKey) {
     throw new ModelUnavailableError('OPENROUTER_API_KEY is not set.');
   }
+  return createOpenRouter({ apiKey: env.openRouterKey });
+}
 
-  const chain = modelChain(model ?? env.modelRoutine);
-  let lastProblem = 'No response from the model.';
+function model(id: string): LanguageModel {
+  return provider()(id);
+}
 
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    const chosen = chain[attempt % chain.length];
+/** Capacity failures come back as ordinary errors, so they are matched by text. */
+const UPSTREAM_TROUBLE =
+  /upstream|resourceexhausted|overloaded|rate.?limit|capacity|timeout|aborted/i;
 
-    // Only wait once the whole chain has been tried.
+interface StructuredOptions<T> {
+  system: string;
+  prompt: string;
+  schema: z.ZodType<T>;
+  preferred?: string;
+  temperature?: number;
+}
+
+/**
+ * Structured output, validated against a schema before it is returned.
+ *
+ * This replaces hand-rolled JSON extraction: a reply that does not fit the
+ * schema is a failure and moves to the next model, rather than being half-read.
+ */
+export async function generateStructured<T>({
+  system,
+  prompt,
+  schema,
+  preferred,
+  temperature = 0.1,
+}: StructuredOptions<T>): Promise<T> {
+  const chain = chainFrom(preferred ?? env.modelRoutine);
+  let lastProblem = 'No usable response from the model.';
+
+  for (let attempt = 0; attempt < chain.length + 1; attempt++) {
+    const id = chain[attempt % chain.length];
+
     if (attempt >= chain.length) {
-      await new Promise((r) =>
-        setTimeout(r, 700 * 2 ** (attempt - chain.length)),
-      );
+      await new Promise((r) => setTimeout(r, 800));
     }
-
-    let response: Response;
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        signal: abort.signal,
-        headers: {
-          Authorization: `Bearer ${env.openRouterKey}`,
-          'Content-Type': 'application/json',
-          'X-Title': 'Muster',
-        },
-        body: JSON.stringify({
-          model: chosen,
-          temperature,
-          max_tokens: maxTokens,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-        }),
+      const { object } = await generateObject({
+        model: model(id),
+        schema,
+        system,
+        prompt,
+        temperature,
+        abortSignal: AbortSignal.timeout(30_000),
       });
+      return object;
     } catch (error) {
-      lastProblem =
-        error instanceof Error && error.name === 'AbortError'
-          ? `${chosen} did not answer in time.`
-          : error instanceof Error
-            ? error.message
-            : 'Network error.';
-      continue;
-    } finally {
-      clearTimeout(timer);
+      const message =
+        error instanceof Error ? error.message : 'Unknown model error.';
+      lastProblem = message;
+
+      // A schema mismatch on one model is worth retrying on another; a missing
+      // key is not going to fix itself.
+      if (error instanceof ModelUnavailableError) throw error;
+      if (!UPSTREAM_TROUBLE.test(message) && attempt >= chain.length - 1) {
+        break;
+      }
     }
-
-    if (!response.ok) {
-      lastProblem = `The model service returned ${response.status}.`;
-      continue;
-    }
-
-    const body = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-      error?: { message?: string };
-    };
-
-    const content = body.choices?.[0]?.message?.content?.trim() ?? '';
-
-    // A 200 can still carry an upstream capacity failure as the message body.
-    if (!content || UPSTREAM_TROUBLE.test(content)) {
-      lastProblem =
-        body.error?.message ?? content ?? 'The model service was busy.';
-      continue;
-    }
-
-    return content;
   }
 
   throw new ModelUnavailableError(lastProblem);
 }
 
+interface StreamOptions {
+  system: string;
+  prompt: string;
+  preferred?: string;
+  temperature?: number;
+}
+
 /**
- * Pulls the first JSON object or array out of a model reply. Reasoning models
- * sometimes wrap output in prose or a code fence even when told not to.
+ * Prose, streamed.
+ *
+ * Yields text as it arrives so a reply appears while it is being written
+ * instead of after a silent wait. Failover happens before the first token: once
+ * streaming has started, switching models mid-sentence would garble the reply,
+ * so a mid-stream failure ends the stream and the caller keeps what arrived.
  */
-export function parseJson<T>(raw: string): T {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = (fenced ? fenced[1] : raw).trim();
+export async function* streamProse({
+  system,
+  prompt,
+  preferred,
+  temperature = 0.6,
+}: StreamOptions): AsyncGenerator<string> {
+  const chain = chainFrom(preferred ?? env.modelRoutine);
+  let lastProblem = 'No response from the model.';
 
-  try {
-    return JSON.parse(candidate) as T;
-  } catch {
-    // fall through
-  }
+  for (const id of chain) {
+    let started = false;
 
-  const start = candidate.search(/[[{]/);
-  if (start !== -1) {
-    const opener = candidate[start];
-    const closer = opener === '{' ? '}' : ']';
-    const end = candidate.lastIndexOf(closer);
-    if (end > start) {
-      try {
-        return JSON.parse(candidate.slice(start, end + 1)) as T;
-      } catch {
-        // fall through
+    try {
+      const result = streamText({
+        model: model(id),
+        system,
+        prompt,
+        temperature,
+        abortSignal: AbortSignal.timeout(45_000),
+      });
+
+      for await (const chunk of result.textStream) {
+        if (!chunk) continue;
+        started = true;
+        yield chunk;
       }
+
+      if (started) return;
+      lastProblem = `${id} returned nothing.`;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown model error.';
+      lastProblem = message;
+      if (started) return;
     }
   }
 
-  throw new Error('The model did not return readable JSON.');
-}
-
-export async function completeJson<T>(options: CompleteOptions): Promise<T> {
-  return parseJson<T>(await complete(options));
+  throw new ModelUnavailableError(lastProblem);
 }

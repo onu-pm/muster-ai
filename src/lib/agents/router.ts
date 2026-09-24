@@ -1,5 +1,6 @@
 import 'server-only';
-import { completeJson, ModelUnavailableError } from '@/lib/ai/openrouter';
+import { z } from 'zod';
+import { generateStructured, ModelUnavailableError } from '@/lib/ai/openrouter';
 import { createContext, listCapabilities } from './registry';
 import type { ThreadMessage } from './conversation';
 import type { Factsheet } from './factsheet';
@@ -33,10 +34,21 @@ export interface Plan {
   opening: string | null;
 }
 
-interface RawPlan {
-  steps?: { capability?: string; input?: Record<string, unknown> }[];
-  opening?: string;
-}
+/**
+ * The shape a plan must fit. Validated by the SDK, so a reply that does not
+ * match is rejected outright rather than half-read.
+ */
+const PlanSchema = z.object({
+  opening: z.string().describe('One short line from whoever picks it up first'),
+  steps: z
+    .array(
+      z.object({
+        capability: z.string().describe('Exactly one of the listed keys'),
+        input: z.record(z.string(), z.unknown()).default({}),
+      }),
+    )
+    .max(4),
+});
 
 function capabilityMenu(): string {
   return listCapabilities()
@@ -53,10 +65,7 @@ Rules:
 - Only fill "input" with values the person actually said. Never invent a name, a salary, a date or a skill.
 - Leave a value out entirely rather than guessing it.
 - If nothing listed fits, return an empty "steps" array.
-- "opening" is one short line from whoever picks it up first, in their voice. No greeting, no restating the request.
-
-Reply with JSON only:
-{"opening": "...", "steps": [{"capability": "key", "input": {...}}]}`;
+- "opening" is one short line from whoever picks it up first, in their voice. No greeting, no restating the request.`;
 
 export async function plan(
   text: string,
@@ -69,9 +78,10 @@ export async function plan(
     .join('\n');
 
   try {
-    const raw = await completeJson<RawPlan>({
+    const raw = await generateStructured({
+      schema: PlanSchema,
       system: SYSTEM,
-      user: [
+      prompt: [
         `CAPABILITIES\n${capabilityMenu()}`,
         '',
         `WHAT IS ON FILE\n${describeFactsheet(facts)}`,
@@ -82,20 +92,15 @@ export async function plan(
       ]
         .filter(Boolean)
         .join('\n'),
-      maxTokens: 700,
       temperature: 0.1,
     });
 
     const known = new Set(listCapabilities().map((c) => c.key));
-    const steps = (raw.steps ?? [])
-      .filter((s) => s.capability && known.has(s.capability))
-      .map((s) => ({
-        capability: s.capability as string,
-        input: s.input ?? {},
-      }))
-      .slice(0, 4);
+    const steps = raw.steps
+      .filter((s) => known.has(s.capability))
+      .map((s) => ({ capability: s.capability, input: s.input ?? {} }));
 
-    return { steps, opening: raw.opening?.trim() || null };
+    return { steps, opening: raw.opening.trim() || null };
   } catch (error) {
     if (error instanceof ModelUnavailableError) return null;
     return null;

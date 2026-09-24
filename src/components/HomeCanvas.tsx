@@ -7,7 +7,6 @@ import {
   authoriseSchedule,
   connectFromChat,
   decideFromChat,
-  sendGoal,
 } from '@/app/actions/chat';
 import {
   EMPTY_STATE,
@@ -37,13 +36,15 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
   /** Indexes whose inline action has been used, so it cannot be used twice. */
   const [spent, setSpent] = useState<Set<number>>(new Set());
   const [pending, startTransition] = useTransition();
+  /** A stream is in flight; separate from the inline actions' transitions. */
+  const [streaming, setStreaming] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const active = thread.length > 0;
 
   useEffect(() => {
     if (active) endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [thread, pending, active]);
+  }, [thread, pending, streaming, active]);
 
   function apply(result: TurnResult) {
     setThread((t) => [...t, ...result.messages]);
@@ -54,15 +55,82 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
     setSpent((s) => new Set(s).add(index));
   }
 
-  function submit(e: React.FormEvent) {
+  /**
+   * Typed messages go over a stream, so each teammate's line appears the moment
+   * that step finishes rather than the whole exchange landing at the end.
+   */
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const text = goal.trim();
-    if (!text || pending) return;
+    if (!text || streaming) return;
 
     const history = thread.map((m) => ({ from: m.from, body: m.body }));
     setThread((t) => [...t, { from: 'you', body: text }]);
     setGoal('');
-    startTransition(async () => apply(await sendGoal(text, state, history)));
+    setStreaming(true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, state, history }),
+      });
+
+      if (!response.body) throw new Error('No response');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Newline-delimited JSON: everything before the last newline is whole.
+        let newline = buffer.indexOf('\n');
+        while (newline !== -1) {
+          const line = buffer.slice(0, newline).trim();
+          buffer = buffer.slice(newline + 1);
+          if (line) handleEvent(line);
+          newline = buffer.indexOf('\n');
+        }
+      }
+    } catch {
+      setThread((t) => [
+        ...t,
+        {
+          from: 'Holly',
+          body: "I lost the connection there. Say that again?",
+        },
+      ]);
+    } finally {
+      setStreaming(false);
+    }
+  }
+
+  function handleEvent(line: string) {
+    let event: {
+      type: string;
+      message?: ThreadMessage;
+      state?: ConversationState;
+      error?: string;
+    };
+
+    try {
+      event = JSON.parse(line);
+    } catch {
+      return;
+    }
+
+    if (event.type === 'message' && event.message) {
+      setThread((t) => [...t, event.message!]);
+    } else if (event.type === 'state' && event.state) {
+      setState(event.state);
+    } else if (event.type === 'error' && event.error) {
+      setThread((t) => [...t, { from: 'Holly', body: event.error! }]);
+    }
   }
 
   function handleConnect(
@@ -124,7 +192,9 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
       setState((s) => ({ ...s, awaiting: null }));
       return;
     }
-    startTransition(async () => apply(await sendGoal(value, state)));
+
+    // Any other choice is just words, so it goes back through the chat.
+    setGoal(value);
   }
 
   return (
@@ -149,7 +219,7 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
                 {msg.action ? (
                   <InlineActions
                     action={msg.action}
-                    busy={pending}
+                    busy={pending || streaming}
                     spent={spent.has(i)}
                     onConnect={(key, creds) => handleConnect(i, key, creds)}
                     onDecide={(id, outcome, note) =>
@@ -162,7 +232,7 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
               </div>
             ))}
 
-            {pending ? (
+            {pending || streaming ? (
               <div className="msg msg-agent">
                 <div className="msgWho">Holly</div>
                 <span className="row" style={{ gap: 8 }}>
@@ -200,7 +270,7 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
           />
           <button
             className="btn btn-primary"
-            disabled={!goal.trim() || pending}
+            disabled={!goal.trim() || pending || streaming}
             aria-label="Send"
           >
             <SendIcon />

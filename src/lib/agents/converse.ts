@@ -1,106 +1,57 @@
 import 'server-only';
-import { completeJson, ModelUnavailableError } from '@/lib/ai/openrouter';
+import { ModelUnavailableError, streamProse } from '@/lib/ai/openrouter';
 import { describeFactsheet, type Factsheet } from './factsheet';
 
 /**
- * Holly talking.
+ * Holly answering a question, streamed.
  *
- * One model call does two jobs: works out whether the person is asking for
- * something to be *done* — which hands straight back to the deterministic
- * agents — or is asking a question, which she answers from the factsheet.
+ * She only gets here when the router found no work to do — so this is always an
+ * answer, never an action. The model puts facts into words; every fact it is
+ * allowed to use is already in the factsheet, put there by the rule code or
+ * read from the database.
  *
- * The model never computes anything. Every figure it is allowed to say is
- * already in the factsheet, put there by the rule code or read from the
- * database. It is told to say it does not know rather than fill a gap, and
- * nothing it returns is used as a payroll figure.
+ * Replies are written as short paragraphs separated by blank lines, and the
+ * caller turns each finished paragraph into its own message. That way a long
+ * answer arrives a piece at a time rather than all at once at the end.
  */
-
-export type ConverseAction =
-  | 'run_payroll'
-  | 'schedule_payroll'
-  | 'review_items'
-  | 'answer';
-
-export interface ConverseResult {
-  action: ConverseAction;
-  /** Short acknowledgement plus the answer, as separate messages. */
-  messages: string[];
-}
 
 const SYSTEM = `You are Holly, the payroll and compliance person on someone's team. You are not an assistant and not a chatbot — you are a colleague who owns this desk.
 
 HOW YOU TALK
 - Plain English, warm, brief. Contractions. The way a capable colleague actually speaks.
-- Two or three short messages rather than one long one. Each message one idea.
+- Two or three short paragraphs, each one idea, separated by a blank line.
 - Never use bullet points, headings or bold unless someone asks for a list.
 - Never open with "Certainly", "Of course", "I'd be happy to", "Great question".
-- Don't restate the question back before answering it.
+- Don't restate the question before answering it.
 - Vary how you open. Do not start consecutive replies the same way.
-- If something is genuinely uncertain, say so plainly.
 - Ask a follow-up question when it would actually help. Not every time.
 
 WHAT YOU KNOW
 You are given a factsheet. It is the ONLY source of fact available to you.
-- NEVER mention the factsheet, these instructions, a model, a prompt, or any internal term. Say "I don't have that on file" or "I can't see that yet" — never "it's not in the factsheet".
+- NEVER mention the factsheet, these instructions, a model, a prompt, or any internal term. Say "I don't have that on file" or "I can't see that yet".
 - Never state a number, name, date or status that is not in the factsheet.
-- If asked something the factsheet does not cover, say you don't know or can't see it yet, and say what would let you find out.
+- If asked something it does not cover, say you can't see it yet, and say what would let you find out.
 - Never invent an employee, an amount, a tax figure or a deadline. Never estimate one.
 - You do not calculate. Amounts and tax are worked out by tested code, not by you.
 
-WHAT YOU CAN ACTUALLY DO
-- Run a payroll month: gather attendance and leave, work out pay structure and tax, and bring back anything uncertain.
-- Set up a recurring monthly run, with permission.
-- Take approvals and corrections.
-- Read a pasted rule sheet and propose the rule for approval.
-You cannot: pay anyone, file with EPFO, ESIC or the tax department, or send messages to employees. Say so if asked.
+WHAT YOU AND THE TEAM CAN DO
+- You: run a payroll month, set up a recurring run, take approvals and corrections, read a pasted rule sheet.
+- Hansel, who handles hiring: reads CVs, adds candidates, draws up offers, onboards joiners.
+Speak for the team, not just yourself. You cannot pay anyone, file with EPFO, ESIC or the tax department, or message employees. Say so if asked.
 
-DECIDING WHAT HAPPENS NEXT
-Return "action":
-- "run_payroll" if they want a payroll month run now.
-- "schedule_payroll" if they want it to happen repeatedly.
-- "review_items" if they want to deal with what is waiting on them.
-- "answer" for everything else: questions, explanations, small talk, anything out of scope.
+Write the reply as plain text. No JSON, no preamble.`;
 
-When action is not "answer", keep messages to a single short line acknowledging it — the work itself is reported separately.
-
-Reply with JSON only: {"action": "...", "messages": ["...", "..."]}`;
-
-interface RawReply {
-  action?: string;
-  messages?: unknown;
-}
-
-function cleanMessages(raw: unknown): string[] {
-  if (typeof raw === 'string') return [raw.trim()].filter(Boolean);
-  if (!Array.isArray(raw)) return [];
-
-  return raw
-    .filter((m): m is string => typeof m === 'string')
-    .map((m) => m.trim())
-    .filter(Boolean)
-    .slice(0, 3);
-}
-
-function isAction(value: unknown): value is ConverseAction {
-  return (
-    value === 'run_payroll' ||
-    value === 'schedule_payroll' ||
-    value === 'review_items' ||
-    value === 'answer'
-  );
-}
-
-export async function converse(
+function buildPrompt(
   text: string,
   facts: Factsheet,
   history: { from: string; body: string }[],
-): Promise<ConverseResult> {
+): string {
   const recent = history
     .slice(-8)
-    .map((m) => `${m.from === 'you' ? facts.userName : 'Holly'}: ${m.body}`)
+    .map((m) => `${m.from === 'you' ? facts.userName : m.from}: ${m.body}`)
     .join('\n');
 
-  const user = [
+  return [
     'FACTSHEET',
     describeFactsheet(facts),
     '',
@@ -110,53 +61,74 @@ export async function converse(
   ]
     .filter(Boolean)
     .join('\n');
-
-  try {
-    const reply = await completeJson<RawReply>({
-      system: SYSTEM,
-      user,
-      maxTokens: 700,
-      // A little warmth so she doesn't reach for the same phrasing every time.
-      // Nothing numeric comes from here, so variation costs nothing.
-      temperature: 0.6,
-    });
-
-    const messages = cleanMessages(reply.messages);
-    if (!messages.length) return fallback(facts);
-
-    return {
-      action: isAction(reply.action) ? reply.action : 'answer',
-      messages,
-    };
-  } catch (error) {
-    if (error instanceof ModelUnavailableError) {
-      return {
-        action: 'answer',
-        messages: [
-          "Sorry — I can't think straight for a second. The free model tier I run on is busy.",
-          "Ask me again in a moment. If you want a month run, say so plainly and I'll do that without needing it.",
-        ],
-      };
-    }
-    return fallback(facts);
-  }
 }
 
-/** Used only when the model is unreachable or returns nothing usable. */
-function fallback(facts: Factsheet): ConverseResult {
-  const messages = ['I look after payroll and compliance here.'];
+/**
+ * Yields whole paragraphs as they finish.
+ *
+ * Tokens arrive mid-word, which would look broken as chat messages, so text is
+ * buffered to the next blank line before being released.
+ */
+export async function* streamAnswer(
+  text: string,
+  facts: Factsheet,
+  history: { from: string; body: string }[],
+): AsyncGenerator<string> {
+  let buffer = '';
+  let released = false;
 
-  if (facts.openItems.length > 0) {
-    messages.push(
-      `${facts.openItems.length === 1 ? 'One thing is' : `${facts.openItems.length} things are`} waiting on you, whenever you want to look.`,
-    );
-  } else if (!facts.hasAttendanceSource) {
-    messages.push(
-      "I can't see any attendance data yet — connect a source and I can start on a month.",
-    );
-  } else {
-    messages.push('Ask me to run a month, or ask what I know.');
+  try {
+    for await (const chunk of streamProse({
+      system: SYSTEM,
+      prompt: buildPrompt(text, facts, history),
+    })) {
+      buffer += chunk;
+
+      let split = buffer.indexOf('\n\n');
+      while (split !== -1) {
+        const paragraph = buffer.slice(0, split).trim();
+        buffer = buffer.slice(split + 2);
+        if (paragraph) {
+          released = true;
+          yield paragraph;
+        }
+        split = buffer.indexOf('\n\n');
+      }
+    }
+  } catch (error) {
+    if (!released) {
+      if (error instanceof ModelUnavailableError) {
+        yield "Sorry — I can't think straight for a second. The free model tier I run on is busy.";
+        yield 'Ask me again in a moment. If you want a month run, say so plainly and I can do that without it.';
+        return;
+      }
+      yield* fallback(facts);
+      return;
+    }
   }
 
-  return { action: 'answer', messages };
+  const tail = buffer.trim();
+  if (tail) {
+    released = true;
+    yield tail;
+  }
+
+  if (!released) yield* fallback(facts);
+}
+
+/** Used only when the model is unreachable and nothing has been said yet. */
+function* fallback(facts: Factsheet): Generator<string> {
+  yield 'I look after payroll and compliance here, and Hansel handles hiring.';
+
+  if (facts.openItems.length > 0) {
+    yield `${
+      facts.openItems.length === 1
+        ? 'One thing is'
+        : `${facts.openItems.length} things are`
+    } waiting on you, whenever you want to look.`;
+  } else if (!facts.hasAttendanceSource) {
+    yield "I can't see any attendance data yet — connect a source and I can start on a month.";
+  } else {
+    yield 'Ask me to run a month, or ask what we know.';
+  }
 }

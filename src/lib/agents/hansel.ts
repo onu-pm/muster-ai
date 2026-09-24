@@ -1,6 +1,7 @@
 import 'server-only';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { completeJson, ModelUnavailableError } from '@/lib/ai/openrouter';
+import { z } from 'zod';
+import { generateStructured, ModelUnavailableError } from '@/lib/ai/openrouter';
 import { listPeople } from '@/lib/data/knowledge';
 import {
   matchSkills,
@@ -25,12 +26,17 @@ import { formatMoney } from '@/lib/copy/labels';
 
 const HANSEL = 'Hansel';
 
-interface CvReading {
-  headline: string | null;
-  current_title: string | null;
-  strengths: string[];
-  gaps: string[];
-}
+const CvReadingSchema = z.object({
+  headline: z.string().nullable().describe('One short line on what they do'),
+  current_title: z.string().nullable().describe('Most recent job title, or null'),
+  strengths: z.array(z.string()).max(4),
+  gaps: z
+    .array(z.string())
+    .max(3)
+    .describe('Requirements of the role the CV does not evidence'),
+});
+
+type CvReading = z.infer<typeof CvReadingSchema>;
 
 /** The prose a dictionary cannot reach. Never a score, never a decision. */
 async function readCvProse(
@@ -47,18 +53,16 @@ async function readCvProse(
     .slice(0, 5000);
 
   try {
-    return await completeJson<CvReading>({
+    return await generateStructured({
+      schema: CvReadingSchema,
       system: `You read a CV and summarise it for a hiring manager.
 
 Rules:
 - Describe only what the CV says. Never infer an employer, a title, a date or a qualification that is not written.
 - Do not score, rank or recommend. Do not say whether to interview them.
 - Do not comment on age, gender, nationality, marital status, photographs, or anything about a protected characteristic. Ignore them entirely if present.
-- "gaps" means requirements of the role the CV does not evidence — nothing about the person.
-- Reply with JSON only:
-{"headline": one short line on what they do, "current_title": their most recent job title or null, "strengths": up to 4 short phrases, "gaps": up to 3 short phrases}`,
-      user: `Role being hired for: ${roleTitle}\n\nCV:\n${body}`,
-      maxTokens: 600,
+- "gaps" means requirements of the role the CV does not evidence — nothing about the person.`,
+      prompt: `Role being hired for: ${roleTitle}\n\nCV:\n${body}`,
       temperature: 0.2,
     });
   } catch (error) {
