@@ -5,6 +5,7 @@ import {
   streamProse,
 } from '@/lib/ai/openrouter';
 import { describeFactsheet, type Factsheet } from './factsheet';
+import { scriptedWhenOutOfQuota } from './scripted';
 
 /**
  * Holly answering a question, streamed.
@@ -105,8 +106,9 @@ export async function* streamAnswer(
         // A spent daily quota is not a busy minute, and saying "try again
         // shortly" when it will not work until tomorrow is just a lie.
         if (isQuotaError(error)) {
-          yield "I've used up today's allowance on the free model tier, so I can't talk things through until it resets.";
-          yield 'Everything I do without it still works — ask me to run a month, or ask about a person, a roster or the pipeline.';
+          // The facts were read from the database before any model was asked,
+          // so there is still something true to say.
+          yield* scriptedWhenOutOfQuota(facts);
         } else {
           yield "Sorry — I can't think straight for a second. The free model tier is busy.";
           yield 'Ask me again in a moment. If you want a month run, say so plainly and I can do that without it.';

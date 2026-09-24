@@ -3,6 +3,7 @@ import { parseCv, matchSkills, yearsOfExperience } from './cv';
 import { splitCtc, structureFromRule, DEFAULT_SHAPE } from '@/lib/rules/structure';
 import { applyWageTest } from '@/lib/rules/wage-definition';
 import { readMoney, readPersonName } from '@/lib/agents/parse-input';
+import { matchFastPath, matchSmallTalk } from '@/lib/agents/fast-path';
 
 const CV = `Ananya Sharma
 ananya.sharma@example.com
@@ -141,5 +142,42 @@ describe('reading figures and names out of what someone typed', () => {
 
   it('returns nothing rather than inventing a name', () => {
     expect(readPersonName('run september payroll')).toBeNull();
+  });
+});
+
+describe('spending the daily model allowance wisely', () => {
+  it('answers small talk without a model', () => {
+    expect(matchSmallTalk('hi')).toBe('greeting');
+    expect(matchSmallTalk('thanks!')).toBe('thanks');
+    expect(matchSmallTalk('what can you do?')).toBe('capabilities');
+    expect(matchSmallTalk('bye')).toBe('goodbye');
+  });
+
+  it('does not mistake real work for small talk', () => {
+    expect(matchSmallTalk('Run September payroll')).toBeNull();
+    expect(matchSmallTalk('hi, can you find the salary of Rahul')).toBeNull();
+    expect(matchSmallTalk('help me understand the wage test for Priya')).toBeNull();
+  });
+
+  it('routes the patterned questions straight to a capability', () => {
+    expect(matchFastPath('Find the salary of Rahul')?.capability).toBe(
+      'payroll.person_summary',
+    );
+    expect(matchFastPath('what is the attendance of August')?.capability).toBe(
+      'payroll.attendance_summary',
+    );
+    expect(matchFastPath('who is in the pipeline?')?.capability).toBe(
+      'hiring.candidate_list',
+    );
+    expect(matchFastPath('how many employees do we have')?.capability).toBe(
+      'payroll.roster',
+    );
+  });
+
+  it('leaves anything ambiguous to the planner rather than guessing', () => {
+    expect(matchFastPath('run september payroll')).toBeNull();
+    expect(matchFastPath('what should I be worried about?')).toBeNull();
+    // "salary structure rules" is about policy, not one person's pay.
+    expect(matchFastPath('what are our salary structure rules')).toBeNull();
   });
 });

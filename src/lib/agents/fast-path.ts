@@ -18,6 +18,39 @@ export interface FastMatch {
   input: Record<string, unknown>;
 }
 
+/**
+ * Things worth answering without spending a request.
+ *
+ * The free tier allows 50 model requests a day for the whole account, so a
+ * greeting or a "what can you do" costs the same as a real question. These are
+ * answered from a fixed script instead, which keeps the day's budget for work
+ * that actually needs thinking about.
+ */
+export type SmallTalk = 'greeting' | 'thanks' | 'capabilities' | 'goodbye';
+
+const SMALL_TALK: { kind: SmallTalk; when: RegExp }[] = [
+  { kind: 'greeting', when: /^\s*(hi|hey|hello|yo|good (morning|afternoon|evening))\b[\s!.]*$/i },
+  { kind: 'thanks', when: /^\s*(thanks|thank you|ta|cheers|great|perfect|nice|lovely|brilliant|got it|ok|okay)\b[\s!.]*$/i },
+  { kind: 'goodbye', when: /^\s*(bye|goodbye|see you|later|night)\b[\s!.]*$/i },
+  {
+    /*
+     * "help" only counts on its own. "Help me understand the wage test for
+     * Priya" is a real question and must reach the team, not a canned blurb.
+     */
+    kind: 'capabilities',
+    when: /^\s*help\s*[?!.]*$|\b(what can you do|what do you do|how can you help|what are you for|who are you)\b/i,
+  },
+];
+
+export function matchSmallTalk(text: string): SmallTalk | null {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length > 60) return null;
+  for (const { kind, when } of SMALL_TALK) {
+    if (when.test(trimmed)) return kind;
+  }
+  return null;
+}
+
 const PERSON_AFTER =
   /(?:of|for|does|is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/;
 

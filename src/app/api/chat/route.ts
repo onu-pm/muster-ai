@@ -6,7 +6,8 @@ import { streamAnswer } from '@/lib/agents/converse';
 import { createContext, listCapabilities } from '@/lib/agents/registry';
 import { readMoney, readPersonName } from '@/lib/agents/parse-input';
 import { readIntent } from '@/lib/agents/intent';
-import { matchFastPath } from '@/lib/agents/fast-path';
+import { matchFastPath, matchSmallTalk } from '@/lib/agents/fast-path';
+import { scriptedSmallTalk } from '@/lib/agents/scripted';
 import {
   EMPTY_STATE,
   type ConversationState,
@@ -83,6 +84,23 @@ export async function POST(request: NextRequest) {
 
         if (intent.kind === 'status') {
           await statusTurn(member.orgId, say);
+          send({ type: 'state', state });
+          return;
+        }
+
+        /*
+         * Small talk costs a model request like anything else, and there are
+         * only 50 a day on the free tier. Answer it from a script and keep the
+         * budget for work.
+         */
+        const chat = matchSmallTalk(text);
+        if (chat) {
+          const facts = await buildFactsheet(
+            member.orgId,
+            member.orgName,
+            member.userName,
+          );
+          for (const line of scriptedSmallTalk(chat, facts)) say('Holly', line);
           send({ type: 'state', state });
           return;
         }
