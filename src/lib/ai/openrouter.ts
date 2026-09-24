@@ -3,6 +3,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { generateText, streamText, type LanguageModel } from 'ai';
 import type { z } from 'zod';
 import { env } from '@/lib/env';
+import { isQuotaMessage } from './quota';
 
 /**
  * Every model call in this codebase goes through here.
@@ -93,10 +94,9 @@ const UPSTREAM_TROUBLE =
  * no amount of retrying or failing over to another model will clear it, since
  * it is counted per account per day across all free models.
  */
-const QUOTA_EXHAUSTED = /free-models-per-day|add \d+ credits/i;
-
 export function isQuotaError(error: unknown): boolean {
-  return error instanceof Error && QUOTA_EXHAUSTED.test(error.message);
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return isQuotaMessage(message);
 }
 
 /*
@@ -221,6 +221,15 @@ export async function* streamProse({
   for (const id of chain) {
     let started = false;
 
+    /*
+     * streamText does not throw from the iteration — it reports failures
+     * through onError and simply ends the stream. Relying on try/catch here
+     * silently swallowed the real message and left the default one, which is
+     * why a spent daily quota surfaced as "the tier is busy, try again" when
+     * trying again could not possibly work.
+     */
+    let captured: unknown = null;
+
     try {
       const result = streamText({
         model: model(id),
@@ -229,6 +238,9 @@ export async function* streamProse({
         temperature,
         maxRetries: NO_SDK_RETRIES,
         abortSignal: AbortSignal.timeout(30_000),
+        onError: ({ error }) => {
+          captured = error;
+        },
       });
 
       for await (const chunk of result.textStream) {
@@ -236,15 +248,19 @@ export async function* streamProse({
         started = true;
         yield chunk;
       }
-
-      if (started) return;
-      lastProblem = `${id} returned nothing.`;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown model error.';
-      lastProblem = message;
-      if (started) return;
-      if (isQuotaError(error)) break;
+      captured = error;
+    }
+
+    if (started) return;
+
+    if (captured) {
+      lastProblem =
+        captured instanceof Error ? captured.message : String(captured);
+      // The quota is per account, so the next model has nothing left either.
+      if (isQuotaError(captured)) break;
+    } else {
+      lastProblem = `${id} returned nothing.`;
     }
   }
 

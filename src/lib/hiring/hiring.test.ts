@@ -4,6 +4,7 @@ import { splitCtc, structureFromRule, DEFAULT_SHAPE } from '@/lib/rules/structur
 import { applyWageTest } from '@/lib/rules/wage-definition';
 import { readMoney, readPersonName } from '@/lib/agents/parse-input';
 import { matchFastPath, matchSmallTalk } from '@/lib/agents/fast-path';
+import { isQuotaMessage } from '@/lib/ai/quota';
 
 const CV = `Ananya Sharma
 ananya.sharma@example.com
@@ -179,5 +180,26 @@ describe('spending the daily model allowance wisely', () => {
     expect(matchFastPath('what should I be worried about?')).toBeNull();
     // "salary structure rules" is about policy, not one person's pay.
     expect(matchFastPath('what are our salary structure rules')).toBeNull();
+  });
+});
+
+describe('knowing a spent allowance from a busy minute', () => {
+  it('recognises the daily free-model cap', () => {
+    expect(
+      isQuotaMessage(
+        'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day',
+      ),
+    ).toBe(true);
+  });
+
+  it('does not mistake an ordinary busy model for it', () => {
+    for (const message of [
+      'Upstream error from Nvidia: Service temporarily overloaded',
+      'The operation was aborted due to timeout',
+      'No object generated: the model did not return a response.',
+      'nex-agi/nex-n2.5-mini:free returned nothing.',
+    ]) {
+      expect(isQuotaMessage(message)).toBe(false);
+    }
   });
 });
