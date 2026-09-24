@@ -1,6 +1,6 @@
 import 'server-only';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { generateObject, streamText, type LanguageModel } from 'ai';
+import { generateText, streamText, type LanguageModel } from 'ai';
 import type { z } from 'zod';
 import { env } from '@/lib/env';
 
@@ -12,9 +12,21 @@ import { env } from '@/lib/env';
  * `src/lib/rules`, which is unit-tested.
  *
  * Built on the Vercel AI SDK (Apache-2.0) through the OpenRouter provider
- * (Apache-2.0). The SDK gives schema-validated structured output and token
- * streaming; what it does not give is failover between models, and the free
- * Nemotron tier refuses a large share of requests, so that part stays ours.
+ * (Apache-2.0), for transport and streaming.
+ *
+ * Two things the SDK cannot do here, both measured on this account:
+ *
+ *   - `generateObject` does not work on the free Nemotron tier. Five of six
+ *     attempts failed with an upstream error, a timeout, or "no object
+ *     generated"; the one that succeeded returned a malformed object. These
+ *     models do not support the provider-side structured-output mode it needs.
+ *     So JSON is asked for in the prompt, parsed leniently, and validated
+ *     against the same zod schema afterwards — the guarantee is kept, the
+ *     dependency on provider support is not.
+ *   - Failover between models. The free tier refuses a large share of requests,
+ *     so that stays ours too.
+ *
+ * `streamText` does work, and carries all the prose.
  */
 
 export class ModelUnavailableError extends Error {
@@ -57,8 +69,35 @@ interface StructuredOptions<T> {
   system: string;
   prompt: string;
   schema: z.ZodType<T>;
+  /** Shown to the model so it knows the shape to produce. */
+  shapeHint: string;
   preferred?: string;
   temperature?: number;
+}
+
+/**
+ * Pulls the first JSON object or array out of a reply. Reasoning models wrap
+ * output in prose or a code fence even when told not to.
+ */
+export function parseJson(raw: string): unknown {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = (fenced ? fenced[1] : raw).trim();
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    // fall through
+  }
+
+  const start = candidate.search(/[[{]/);
+  if (start === -1) throw new Error('No JSON in the reply.');
+
+  const opener = candidate[start];
+  const closer = opener === '{' ? '}' : ']';
+  const end = candidate.lastIndexOf(closer);
+  if (end <= start) throw new Error('No JSON in the reply.');
+
+  return JSON.parse(candidate.slice(start, end + 1));
 }
 
 /**
@@ -71,40 +110,39 @@ export async function generateStructured<T>({
   system,
   prompt,
   schema,
+  shapeHint,
   preferred,
   temperature = 0.1,
 }: StructuredOptions<T>): Promise<T> {
   const chain = chainFrom(preferred ?? env.modelRoutine);
   let lastProblem = 'No usable response from the model.';
 
+  const instructed = `${system}\n\nReply with a single JSON object and nothing else, in exactly this shape:\n${shapeHint}`;
+
   for (let attempt = 0; attempt < chain.length + 1; attempt++) {
     const id = chain[attempt % chain.length];
-
-    if (attempt >= chain.length) {
-      await new Promise((r) => setTimeout(r, 800));
-    }
+    if (attempt >= chain.length) await new Promise((r) => setTimeout(r, 800));
 
     try {
-      const { object } = await generateObject({
+      const { text } = await generateText({
         model: model(id),
-        schema,
-        system,
+        system: instructed,
         prompt,
         temperature,
         abortSignal: AbortSignal.timeout(30_000),
       });
-      return object;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown model error.';
-      lastProblem = message;
 
-      // A schema mismatch on one model is worth retrying on another; a missing
-      // key is not going to fix itself.
-      if (error instanceof ModelUnavailableError) throw error;
-      if (!UPSTREAM_TROUBLE.test(message) && attempt >= chain.length - 1) {
-        break;
+      if (!text?.trim() || UPSTREAM_TROUBLE.test(text)) {
+        lastProblem = text?.trim() || `${id} returned nothing.`;
+        continue;
       }
+
+      // The schema is still the contract; only who enforces it has changed.
+      return schema.parse(parseJson(text));
+    } catch (error) {
+      lastProblem =
+        error instanceof Error ? error.message : 'Unknown model error.';
+      if (error instanceof ModelUnavailableError) throw error;
     }
   }
 

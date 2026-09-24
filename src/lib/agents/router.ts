@@ -81,6 +81,8 @@ export async function plan(
   try {
     const raw = await generateStructured({
       schema: PlanSchema,
+      shapeHint:
+        '{"opening": "one short line", "steps": [{"capability": "exact.key", "input": {"name": "...", "roleTitle": "..."}}]}',
       system: SYSTEM,
       prompt: [
         `CAPABILITIES\n${capabilityMenu()}`,

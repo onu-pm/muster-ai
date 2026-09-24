@@ -66,6 +66,8 @@ export async function proposeRuleFromSheet(
   try {
     extracted = await generateStructured({
       schema: ExtractedRuleSchema,
+      shapeHint:
+        '{"rule_key": "key or null", "label": "short title", "scope": "statutory|policy|null", "jurisdiction": "IN-XX or null", "effective_from": "YYYY-MM-DD or null", "definition": {"figures": "as stated"}, "unreadable": "note or null"}',
       system: SYSTEM,
       prompt: text,
       temperature: 0,

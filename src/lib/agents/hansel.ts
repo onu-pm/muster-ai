@@ -55,6 +55,8 @@ async function readCvProse(
   try {
     return await generateStructured({
       schema: CvReadingSchema,
+      shapeHint:
+        '{"headline": "one line or null", "current_title": "title or null", "strengths": ["..."], "gaps": ["..."]}',
       system: `You read a CV and summarise it for a hiring manager.
 
 Rules:
