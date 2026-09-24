@@ -88,6 +88,25 @@ function model(id: string): LanguageModel {
 const UPSTREAM_TROUBLE =
   /upstream|resourceexhausted|overloaded|rate.?limit|capacity|timeout|aborted/i;
 
+/**
+ * The daily free-model quota, which is a different thing from a busy model:
+ * no amount of retrying or failing over to another model will clear it, since
+ * it is counted per account per day across all free models.
+ */
+const QUOTA_EXHAUSTED = /free-models-per-day|add \d+ credits/i;
+
+export function isQuotaError(error: unknown): boolean {
+  return error instanceof Error && QUOTA_EXHAUSTED.test(error.message);
+}
+
+/*
+ * The SDK retries three times with backoff on its own. Stacked on top of the
+ * failover below that is nine attempts for one reply, which is how a dead
+ * quota turned into a 47-second wait before the error surfaced. Failover is
+ * handled here, so the SDK should try once and hand back.
+ */
+const NO_SDK_RETRIES = 0;
+
 interface StructuredOptions<T> {
   system: string;
   prompt: string;
@@ -152,7 +171,8 @@ export async function generateStructured<T>({
         system: instructed,
         prompt,
         temperature,
-        abortSignal: AbortSignal.timeout(30_000),
+        maxRetries: NO_SDK_RETRIES,
+        abortSignal: AbortSignal.timeout(20_000),
       });
 
       if (!text?.trim() || UPSTREAM_TROUBLE.test(text)) {
@@ -166,6 +186,8 @@ export async function generateStructured<T>({
       lastProblem =
         error instanceof Error ? error.message : 'Unknown model error.';
       if (error instanceof ModelUnavailableError) throw error;
+      // The quota is per account, so the next model has nothing left either.
+      if (isQuotaError(error)) break;
     }
   }
 
@@ -205,7 +227,8 @@ export async function* streamProse({
         system,
         prompt,
         temperature,
-        abortSignal: AbortSignal.timeout(45_000),
+        maxRetries: NO_SDK_RETRIES,
+        abortSignal: AbortSignal.timeout(30_000),
       });
 
       for await (const chunk of result.textStream) {
@@ -221,6 +244,7 @@ export async function* streamProse({
         error instanceof Error ? error.message : 'Unknown model error.';
       lastProblem = message;
       if (started) return;
+      if (isQuotaError(error)) break;
     }
   }
 
