@@ -10,6 +10,7 @@ import {
   exceptionKindLabel,
   pluralise,
 } from '@/lib/copy/labels';
+import { hueFor } from '@/lib/copy/hue';
 
 export default async function HomePage() {
   const { org, displayName } = await requireWorkspace();
@@ -31,7 +32,10 @@ export default async function HomePage() {
     const card = (
       <div className={`card teamCard ${mate.active ? 'card-hover' : 'card-dim'}`}>
         <div className="row teamCardHead">
-          <span className={`avatar ${mate.active ? '' : 'avatar-muted'}`}>
+          <span
+            className={`avatar ${mate.active ? '' : 'avatar-muted'}`}
+            data-hue={hueFor(mate.name)}
+          >
             {mate.initial}
           </span>
           <div style={{ minWidth: 0 }}>

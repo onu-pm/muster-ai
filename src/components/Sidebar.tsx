@@ -8,6 +8,7 @@ import {
   MarketplaceIcon,
   TeamIcon,
 } from '@/components/Icons';
+import { hueFor } from '@/lib/copy/hue';
 
 const NAV = [
   { href: '/home', label: 'Home', Icon: HomeIcon },
@@ -65,7 +66,9 @@ export function Sidebar({ orgName, userEmail, needsYouCount }: Props) {
           className="profileLink"
           data-active={pathname.startsWith('/profile')}
         >
-          <span className="avatar avatar-sm">{initial}</span>
+          <span className="avatar avatar-sm" data-hue={hueFor(orgName)}>
+            {initial}
+          </span>
           <span className="profileText">
             <span className="profileName">{orgName}</span>
             <span className="profileSub">{userEmail}</span>
