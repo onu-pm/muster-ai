@@ -4,7 +4,7 @@ import { generateStructured, ModelUnavailableError } from '@/lib/ai/openrouter';
 import { createContext, listCapabilities } from './registry';
 import type { ThreadMessage } from './conversation';
 import type { Factsheet } from './factsheet';
-import { describeFactsheet } from './factsheet';
+import { describeFactsheetBrief } from './factsheet';
 import { readMoney, readPersonName } from './parse-input';
 
 export { readMoney, readPersonName } from './parse-input';
@@ -72,9 +72,10 @@ export async function plan(
   facts: Factsheet,
   history: { from: string; body: string }[],
 ): Promise<Plan | null> {
+  // Two turns is enough to resolve "and onboard her too"; more is just latency.
   const recent = history
-    .slice(-6)
-    .map((m) => `${m.from}: ${m.body}`)
+    .slice(-2)
+    .map((m) => `${m.from}: ${m.body.slice(0, 160)}`)
     .join('\n');
 
   try {
@@ -84,7 +85,7 @@ export async function plan(
       prompt: [
         `CAPABILITIES\n${capabilityMenu()}`,
         '',
-        `WHAT IS ON FILE\n${describeFactsheet(facts)}`,
+        `WHAT IS ON FILE\n${describeFactsheetBrief(facts)}`,
         '',
         recent ? `RECENT CONVERSATION\n${recent}` : '',
         '',

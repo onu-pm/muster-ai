@@ -80,6 +80,23 @@ export async function buildFactsheet(
   };
 }
 
+/**
+ * A short version, for routing rather than answering.
+ *
+ * Choosing which capability to run needs to know what exists, not every detail
+ * of it. The full sheet made the planning call the slowest thing in the turn,
+ * and nothing could be said until it returned.
+ */
+export function describeFactsheetBrief(facts: Factsheet): string {
+  return [
+    `People on the roster: ${facts.peopleTotal} (${facts.peopleWithoutStructure} without a salary structure)`,
+    `Can read attendance: ${facts.hasAttendanceSource ? 'yes' : 'no'}`,
+    `Confirmed rules: ${facts.confirmedRules.length}`,
+    `Waiting on a decision: ${facts.openItems.length}`,
+    `Work in flight: ${facts.inFlight.length}`,
+  ].join('\n');
+}
+
 /** Rendered for the prompt. Plain lines, so the model has nothing to parse. */
 export function describeFactsheet(facts: Factsheet): string {
   const lines: string[] = [
