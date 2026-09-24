@@ -169,6 +169,30 @@ it never supplies a figure: the package above is parsed from the person's own
 words by `readMoney` in `src/lib/agents/parse-input.ts`, and the split comes
 from `src/lib/rules/structure.ts`.
 
+## Streaming, and what the AI SDK could and could not do
+
+The chat streams. `/api/chat` emits newline-delimited events and each
+teammate's message goes out the moment that step finishes, so a payroll run
+reads as it progresses instead of appearing whole after twenty seconds.
+
+Built on the **Vercel AI SDK** (Apache-2.0) via the **OpenRouter provider**
+(Apache-2.0). Worth recording what did not work:
+
+- **`streamText` works.** It carries all prose, released a paragraph at a time
+  so tokens never render mid-word.
+- **`generateObject` does not work on the free Nemotron tier.** Measured over
+  six attempts: five failed with an upstream error, a timeout or "no object
+  generated", and the one that returned produced a malformed object. These
+  models do not support the provider-side structured-output mode it needs.
+  Adopting it silently broke capability routing — the planner fell through to
+  conversation, so "Find the salary of Rahul" stopped reaching
+  `payroll.person_summary`.
+
+So structured output asks for JSON in the prompt, parses it leniently, and
+validates against the same zod schema afterwards. The contract is unchanged;
+what enforces it no longer depends on provider support these models lack.
+Failover between the two usable free models stays ours — the SDK does not do it.
+
 ## Open-source code used, and licences checked
 
 Every dependency here was licence-checked before use, because a copyleft licence
@@ -177,12 +201,20 @@ in this codebase would change what Muster itself has to be.
 | Project | Licence | What was taken |
 | --- | --- | --- |
 | [perminder-klair/resume-parser](https://github.com/perminder-klair/resume-parser) | **MIT** ✓ | The section-heading dictionary and dictionary-driven extraction approach, rewritten in TypeScript in `src/lib/hiring/cv.ts`. Its network profile-scraping was deliberately dropped — Muster does not fetch a candidate's public profiles. |
+| [Vercel AI SDK](https://github.com/vercel/ai) + [OpenRouter provider](https://github.com/OpenRouterTeam/ai-sdk-provider) | **Apache-2.0** ✓ | Transport and `streamText`. `generateObject` unusable here — see above. |
 | [openai/openai-agents-python](https://github.com/openai/openai-agents-python) | **MIT** ✓ | The handoff pattern — agents exposing named handoffs rather than one orchestrator knowing everyone's internals — adapted in `src/lib/agents/registry.ts`. Narrower here: capabilities are a fixed declared set, so a model can never name a function. |
 
 **Rejected on licence grounds**, despite being the better parsers:
 
 - [xitanggg/open-resume](https://github.com/xitanggg/open-resume) — **AGPL-3.0**. Copying it would oblige Muster to be AGPL too.
 - [OmkarPathak/pyresparser](https://github.com/OmkarPathak/pyresparser) — **GPL-3.0**. Same problem.
+- Whole-product HR systems are all copyleft and cannot be absorbed:
+  [OrangeHRM](https://github.com/orangehrm/orangehrm) GPL-3.0,
+  [Frappe HRMS](https://github.com/frappe/hrms) GPL-3.0,
+  [Kimai](https://github.com/kimai/kimai) AGPL-3.0,
+  [Documenso](https://github.com/documenso/documenso) AGPL-3.0.
+- [Mastra](https://github.com/mastra-ai/mastra) — LICENSE.md splits the repo;
+  not uniformly permissive.
 
 ## Where the statutory figures came from
 
