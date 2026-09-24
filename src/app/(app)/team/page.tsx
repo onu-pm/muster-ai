@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireWorkspace } from '@/lib/data/session';
 import { listTeammates } from '@/lib/data/team';
+import { hueFor } from '@/lib/copy/hue';
 
 export default async function TeamPage() {
   const { org } = await requireWorkspace();
@@ -23,7 +24,10 @@ export default async function TeamPage() {
               style={{ height: '100%' }}
             >
               <div className="row">
-                <span className={`avatar ${mate.active ? '' : 'avatar-muted'}`}>
+                <span
+                  className={`avatar ${mate.active ? '' : 'avatar-muted'}`}
+                  data-hue={hueFor(mate.name)}
+                >
                   {mate.initial}
                 </span>
                 <div style={{ minWidth: 0 }}>

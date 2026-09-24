@@ -2,6 +2,7 @@ import { requireWorkspace } from '@/lib/data/session';
 import { listOrgMembers } from '@/lib/data/members';
 import { OrgNameField, SignOutButton } from '@/components/ProfileForm';
 import { roleLabel } from '@/lib/copy/labels';
+import { hueFor } from '@/lib/copy/hue';
 
 export default async function ProfilePage() {
   const { org, user } = await requireWorkspace();
@@ -39,7 +40,11 @@ export default async function ProfilePage() {
             <div className="card" style={{ padding: '4px 20px' }}>
               {members.map((member) => (
                 <div key={member.userId} className="listRow">
-                  <span className="avatar avatar-sm" aria-hidden>
+                  <span
+                    className="avatar avatar-sm"
+                    data-hue={hueFor(member.name)}
+                    aria-hidden
+                  >
                     {(member.name.trim()[0] ?? '?').toUpperCase()}
                   </span>
                   <div className="grow" style={{ minWidth: 0 }}>

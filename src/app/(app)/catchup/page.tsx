@@ -5,6 +5,7 @@ import { CatchupCard } from '@/components/CatchupCard';
 import { ComingUpList } from '@/components/ComingUpList';
 import { HashFocus } from '@/components/HashFocus';
 import { countLine, exceptionKindLabel, relativeDay } from '@/lib/copy/labels';
+import { hueFor } from '@/lib/copy/hue';
 
 export default async function CatchupPage() {
   const { org } = await requireWorkspace();
@@ -31,7 +32,9 @@ export default async function CatchupPage() {
         {standup.teammates.map((mate) => (
           <section key={mate.key}>
             <div className="row" style={{ gap: 11, marginBottom: 14 }}>
-              <span className="avatar avatar-sm">{mate.initial}</span>
+              <span className="avatar avatar-sm" data-hue={hueFor(mate.name)}>
+                {mate.initial}
+              </span>
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="sectionTitle">{mate.name}</div>
                 <div className="tiny muted">{mate.role}</div>

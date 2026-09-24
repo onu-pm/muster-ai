@@ -37,14 +37,34 @@ export class ModelUnavailableError extends Error {
 }
 
 /**
- * Both measured on this account: super ~2.7s, ultra ~4s, both returning clean
- * structured output. Deliberately excluded — lightning (~40s, too slow to
- * converse through) and nano-omni (returns reasoning and an empty body).
+ * Ordered by measured reliability, not by name.
+ *
+ * Benchmarked on this account over repeated runs, asking for the same routing
+ * JSON and the same short answer:
+ *
+ *   nex-n2.5-mini   6/6 JSON, ~1.8s, stream first token 586ms
+ *   dots-3-note     6/6 JSON, ~1.4s, stream first token 649ms
+ *   nemotron-super  swung between 1/4 and 6/6, and failed streaming outright
+ *
+ * Nemotron stays in the chain because the brief asks for it, but it cannot go
+ * first: every one of its refusals costs a whole extra round trip, which is
+ * where the old 8-20s replies came from.
  */
 const FALLBACK_CHAIN = [
+  'nex-agi/nex-n2.5-mini:free',
+  'dots-studio/dots-3-note-preview:free',
   'nvidia/nemotron-3-super-120b-a12b:free',
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
 ];
+
+/**
+ * These are reasoning models and reasoning is on unless asked otherwise, which
+ * spent 350-650 hidden tokens before a word appeared. Measured: first token
+ * 2556ms with it on, 375ms with it off, for the same reply.
+ *
+ * Nothing here needs a visible chain of thought — the decisions that matter are
+ * made by rule code, not by the model.
+ */
+const NO_REASONING = { reasoning: { enabled: false } } as const;
 
 function chainFrom(preferred: string): string[] {
   return [preferred, ...FALLBACK_CHAIN.filter((m) => m !== preferred)];
@@ -54,7 +74,10 @@ function provider() {
   if (!env.openRouterKey) {
     throw new ModelUnavailableError('OPENROUTER_API_KEY is not set.');
   }
-  return createOpenRouter({ apiKey: env.openRouterKey });
+  return createOpenRouter({
+    apiKey: env.openRouterKey,
+    extraBody: NO_REASONING,
+  });
 }
 
 function model(id: string): LanguageModel {

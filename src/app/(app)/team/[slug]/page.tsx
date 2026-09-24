@@ -22,6 +22,7 @@ import {
   ruleScopeLabel,
   taxRegimeLabel,
 } from '@/lib/copy/labels';
+import { hueFor } from '@/lib/copy/hue';
 
 /** Tabs are per teammate, so the labels carry their name rather than Holly's. */
 function tabsFor(name: string) {
@@ -56,7 +57,9 @@ export default async function TeammatePage({
   return (
     <>
       <header className="row" style={{ gap: 16, marginBottom: 26 }}>
-        <span className="avatar avatar-lg">{mate.initial}</span>
+        <span className="avatar avatar-lg" data-hue={hueFor(mate.name)}>
+          {mate.initial}
+        </span>
         <div style={{ minWidth: 0 }} className="grow">
           <h1>{mate.name}</h1>
           <p className="muted small" style={{ marginTop: 2 }}>

@@ -23,11 +23,11 @@ export const env = {
   },
   /** Extraction and other routine reading. Verified against OpenRouter's live list. */
   get modelRoutine() {
-    return process.env.MODEL_ROUTINE ?? 'nvidia/nemotron-3-super-120b-a12b:free';
+    return process.env.MODEL_ROUTINE ?? 'nex-agi/nex-n2.5-mini:free';
   },
   /** Reserved for the harder calls. Slower, so not used for interactive work. */
   get modelJudgment() {
-    return process.env.MODEL_JUDGMENT ?? 'nvidia/nemotron-3-ultra-550b-a55b:free';
+    return process.env.MODEL_JUDGMENT ?? 'dots-studio/dots-3-note-preview:free';
   },
   get remoteApiToken() {
     return process.env.REMOTE_API_TOKEN ?? '';

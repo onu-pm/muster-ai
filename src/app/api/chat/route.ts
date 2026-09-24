@@ -6,6 +6,7 @@ import { streamAnswer } from '@/lib/agents/converse';
 import { createContext, listCapabilities } from '@/lib/agents/registry';
 import { readMoney, readPersonName } from '@/lib/agents/parse-input';
 import { readIntent } from '@/lib/agents/intent';
+import { matchFastPath } from '@/lib/agents/fast-path';
 import {
   EMPTY_STATE,
   type ConversationState,
@@ -26,6 +27,8 @@ export const maxDuration = 120;
 
 type Event =
   | { type: 'message'; message: ThreadMessage }
+  /** Transient: what is happening right now, replaced when the result lands. */
+  | { type: 'status'; from: string; body: string }
   | { type: 'state'; state: ConversationState }
   | { type: 'error'; error: string };
 
@@ -49,6 +52,10 @@ export async function POST(request: NextRequest) {
 
       const say = (from: string, bodyText: string, action?: ThreadMessage['action']) =>
         send({ type: 'message', message: { from, body: bodyText, action } });
+
+      /** Named work in progress, so a wait says what it is waiting for. */
+      const status = (from: string, bodyText: string) =>
+        send({ type: 'status', from, body: bodyText });
 
       try {
         const member = await resolveMemberOrg();
@@ -80,11 +87,39 @@ export async function POST(request: NextRequest) {
           return;
         }
 
+        /*
+         * Most questions are patterned, and routing them through a model costs
+         * a whole round trip to learn what a regex already knows.
+         */
+        const fast = matchFastPath(text);
+
+        if (fast) {
+          const owner = listCapabilities().find((c) => c.key === fast.capability);
+          status(owner?.teammate ?? 'Holly', 'Checking…');
+
+          const ctx = createContext(member.orgId, member.userName);
+          const result = await ctx.invoke(fast.capability, {
+            ...fast.input,
+            text,
+          });
+
+          if (result.ok && result.messages.length > 0) {
+            for (const message of result.messages) {
+              send({ type: 'message', message });
+            }
+            send({ type: 'state', state });
+            return;
+          }
+          // A fast path that came back empty falls through to the planner.
+        }
+
         const facts = await buildFactsheet(
           member.orgId,
           member.orgName,
           member.userName,
         );
+
+        status('Holly', 'Working out who picks this up…');
 
         // Is there work to do, possibly across several teammates?
         const planned = await plan(text, facts, history);
@@ -106,6 +141,11 @@ export async function POST(request: NextRequest) {
             if (money !== null) input.annualCtc = money;
             if (person) input.name = person;
 
+            const owner = listCapabilities().find(
+              (c) => c.key === step.capability,
+            );
+            if (owner) status(owner.teammate, `${owner.describe}…`);
+
             const result = await ctx.invoke(step.capability, input);
 
             // Straight out as each step lands, not batched at the end.
@@ -121,6 +161,7 @@ export async function POST(request: NextRequest) {
         }
 
         // No work to do: answer, a paragraph at a time.
+        status('Holly', 'Thinking…');
         for await (const paragraph of streamAnswer(text, facts, history)) {
           say('Holly', paragraph);
         }

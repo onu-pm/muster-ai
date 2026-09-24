@@ -10,6 +10,7 @@ import {
   exceptionRuleLine,
   relativeDay,
 } from '@/lib/copy/labels';
+import { hueFor } from '@/lib/copy/hue';
 
 export function CatchupCard({ item }: { item: CatchupItem }) {
   const router = useRouter();
@@ -44,7 +45,11 @@ export function CatchupCard({ item }: { item: CatchupItem }) {
       <div className="row-between wrap" style={{ alignItems: 'flex-start' }}>
         <div className="row" style={{ gap: 10, minWidth: 0 }}>
           {item.personName ? (
-            <span className="avatar avatar-sm" aria-hidden>
+            <span
+              className="avatar avatar-sm"
+              data-hue={hueFor(item.personName)}
+              aria-hidden
+            >
               {item.personName.trim()[0]?.toUpperCase()}
             </span>
           ) : null}

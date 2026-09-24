@@ -38,6 +38,10 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
   const [pending, startTransition] = useTransition();
   /** A stream is in flight; separate from the inline actions' transitions. */
   const [streaming, setStreaming] = useState(false);
+  /** What is happening right now, shown in place of a bare spinner. */
+  const [status, setStatus] = useState<{ from: string; body: string } | null>(
+    null,
+  );
   const endRef = useRef<HTMLDivElement>(null);
 
   const active = thread.length > 0;
@@ -68,6 +72,7 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
     setThread((t) => [...t, { from: 'you', body: text }]);
     setGoal('');
     setStreaming(true);
+    setStatus({ from: 'Holly', body: 'Reading that…' });
 
     try {
       const response = await fetch('/api/chat', {
@@ -107,6 +112,7 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
       ]);
     } finally {
       setStreaming(false);
+      setStatus(null);
     }
   }
 
@@ -116,6 +122,8 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
       message?: ThreadMessage;
       state?: ConversationState;
       error?: string;
+      from?: string;
+      body?: string;
     };
 
     try {
@@ -125,7 +133,11 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
     }
 
     if (event.type === 'message' && event.message) {
+      // A result replaces whatever we were saying we were doing.
+      setStatus(null);
       setThread((t) => [...t, event.message!]);
+    } else if (event.type === 'status' && event.body) {
+      setStatus({ from: event.from ?? 'Holly', body: event.body });
     } else if (event.type === 'state' && event.state) {
       setState(event.state);
     } else if (event.type === 'error' && event.error) {
@@ -233,11 +245,13 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
             ))}
 
             {pending || streaming ? (
-              <div className="msg msg-agent">
-                <div className="msgWho">Holly</div>
+              <div className="msg msg-agent msg-status">
+                <div className="msgWho">{status?.from ?? 'Holly'}</div>
                 <span className="row" style={{ gap: 8 }}>
                   <SpinnerIcon />
-                  <span className="muted">Working on it…</span>
+                  <span className="muted">
+                    {status?.body ?? 'Working on it…'}
+                  </span>
                 </span>
               </div>
             ) : null}

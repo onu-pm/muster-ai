@@ -1,24 +1,41 @@
 :root {
-  --bg: #fbfaf8;
+  --bg: #fcfbf7;
   --surface: #ffffff;
-  --surface-2: #f4f4f1;
-  --text: #1a1c19;
-  --muted: #6f736c;
-  --accent: #1f6f4a;
-  --accent-hover: #18573a;
-  --accent-soft: #e3f0e8;
-  --border: #e3e4df;
-  --error: #b3261e;
+  --surface-2: #f5f3ed;
+  --text: #17211c;
+  --muted: #6b7670;
+  /* Lifted from the original forest: same identity, considerably more life. */
+  --accent: #1a8a5c;
+  --accent-hover: #14704a;
+  --accent-soft: #dcf2e6;
+  --border: #e6e5dd;
+  --error: #c0392b;
+
+  /*
+   * A second, warm hue. A single green against grey was what made this read
+   * sombre — one accent doing every job leaves nothing to lift it.
+   */
+  --warm: #d98324;
+  --warm-soft: #fdefdc;
+  --warm-deep: #9a5a12;
   --radius-card: 16px;
   --radius-control: 10px;
 
-  --accent-deep: #123d29;
-  --success: #1f6f4a;
-  --success-soft: #e3f0e8;
-  --success-text: #18573a;
-  --warn: #9a6114;
-  --warn-soft: #fbf0dd;
-  --error-soft: #fbe9e7;
+  --accent-deep: #0f5437;
+  --success: #1a8a5c;
+  --success-soft: #dcf2e6;
+  --success-text: #10633f;
+  --warn: #9a5a12;
+  --warn-soft: #fdefdc;
+  --error-soft: #fceae7;
+
+  /* Avatars cycle through these, so a team of people looks like people. */
+  --p1: #1a8a5c;
+  --p2: #d98324;
+  --p3: #3f6fb5;
+  --p4: #a8547d;
+  --p5: #2f8f8a;
+  --p6: #b5643f;
 
   --sidebar-width: 236px;
   --content-max: 880px;
@@ -49,14 +66,19 @@ body {
   background: var(--bg);
   background-image:
     radial-gradient(
-      900px 500px at 12% -10%,
-      rgba(31, 111, 74, 0.045),
-      transparent 60%
+      900px 520px at 8% -12%,
+      rgba(26, 138, 92, 0.07),
+      transparent 62%
     ),
     radial-gradient(
-      700px 420px at 100% 0%,
-      rgba(31, 111, 74, 0.028),
-      transparent 55%
+      760px 440px at 102% -4%,
+      rgba(217, 131, 36, 0.075),
+      transparent 58%
+    ),
+    radial-gradient(
+      620px 520px at 50% 108%,
+      rgba(26, 138, 92, 0.035),
+      transparent 60%
     );
   background-attachment: fixed;
   color: var(--text);
@@ -328,8 +350,8 @@ select {
   height: 38px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: linear-gradient(140deg, var(--accent-soft), #c9e3d5);
-  color: var(--accent-deep);
+  background: linear-gradient(145deg, var(--avatar-a, #dcf2e6), var(--avatar-b, #bfe6d1));
+  color: var(--avatar-ink, var(--accent-deep));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -354,6 +376,17 @@ select {
   background: var(--surface-2);
   color: var(--muted);
 }
+
+/*
+ * Six avatar colourways, picked by `data-hue`. One flat green for every person
+ * was a large part of why a team of people looked like a spreadsheet.
+ */
+.avatar[data-hue='0'] { --avatar-a: #dcf2e6; --avatar-b: #b9e5cd; --avatar-ink: #0f5437; }
+.avatar[data-hue='1'] { --avatar-a: #fdefdc; --avatar-b: #f8dcb4; --avatar-ink: #8a4f0d; }
+.avatar[data-hue='2'] { --avatar-a: #e3ecfa; --avatar-b: #c6d8f3; --avatar-ink: #2d5390; }
+.avatar[data-hue='3'] { --avatar-a: #f7e7f0; --avatar-b: #efd0e2; --avatar-ink: #8a4368; }
+.avatar[data-hue='4'] { --avatar-a: #ddf1f0; --avatar-b: #bce4e1; --avatar-ink: #1e6d68; }
+.avatar[data-hue='5'] { --avatar-a: #fbe8e0; --avatar-b: #f5d2c2; --avatar-ink: #97502f; }
 
 /* ---------- Cards ---------- */
 
@@ -596,6 +629,11 @@ select {
   color: var(--accent-deep);
 }
 
+.tag-warm {
+  background: var(--warm-soft);
+  color: var(--warm-deep);
+}
+
 .tag-live {
   background: var(--success-soft);
   color: var(--success-text);
@@ -793,7 +831,7 @@ select {
 
 .msg-user {
   align-self: flex-end;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), #157a51);
   color: #fff;
   border-bottom-right-radius: 6px;
 }
@@ -811,6 +849,11 @@ select {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 13px;
+}
+
+.msg-status {
+  background: var(--surface-2);
+  border-style: dashed;
 }
 
 /* ---------- Goal box ---------- */
