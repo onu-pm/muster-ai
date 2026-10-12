@@ -14,11 +14,12 @@ import {
   type ThreadMessage,
   type TurnResult,
 } from '@/lib/agents/conversation';
+import type { Suggestion } from '@/lib/copy/suggestions';
 
 interface Props {
   userName: string;
-  strip: React.ReactNode;
-  happening: React.ReactNode;
+  /** Ways in, worked out from what is on file. Never a fixed menu. */
+  suggestions: Suggestion[];
 }
 
 /**
@@ -29,7 +30,7 @@ interface Props {
  * and the answer is given here. The column widens and the team strip collapses
  * so the conversation has room, but nothing navigates away.
  */
-export function HomeCanvas({ userName, strip, happening }: Props) {
+export function HomeCanvas({ userName, suggestions }: Props) {
   const [goal, setGoal] = useState('');
   const [thread, setThread] = useState<ThreadMessage[]>([]);
   const [state, setState] = useState<ConversationState>(EMPTY_STATE);
@@ -65,7 +66,12 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
    */
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const text = goal.trim();
+    await send(goal);
+  }
+
+  /** A typed message and a tapped suggestion are the same thing from here on. */
+  async function send(raw: string) {
+    const text = raw.trim();
     if (!text || streaming) return;
 
     const history = thread.map((m) => ({ from: m.from, body: m.body }));
@@ -211,10 +217,6 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
 
   return (
     <div className={active ? 'threadActive' : undefined}>
-      <div className="teamStrip" data-collapsed={active}>
-        {strip}
-      </div>
-
       {active ? (
         <div className="threadPane">
           <div className="thread">
@@ -291,13 +293,26 @@ export function HomeCanvas({ userName, strip, happening }: Props) {
           </button>
         </div>
         {!active ? (
-          <p className="tiny muted" style={{ marginTop: 10, paddingLeft: 4 }}>
-            Whatever Holly needs from you, she&rsquo;ll ask right here.
-          </p>
+          <>
+            <div className="suggestRow">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.label}
+                  type="button"
+                  className="suggestChip"
+                  disabled={streaming}
+                  onClick={() => send(suggestion.text)}
+                >
+                  {suggestion.label}
+                </button>
+              ))}
+            </div>
+            <p className="tiny muted" style={{ marginTop: 14, paddingLeft: 4 }}>
+              Whatever the team needs from you, they&rsquo;ll ask right here.
+            </p>
+          </>
         ) : null}
       </form>
-
-      {!active ? happening : null}
     </div>
   );
 }

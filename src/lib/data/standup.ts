@@ -8,6 +8,7 @@ import {
 } from '@/lib/rules/benefits';
 import { dueReviews, reviewPolicyFrom } from '@/lib/rules/review-cycle';
 import { listTeammates } from './team';
+import { ownerOf } from '@/lib/catalog/ownership';
 import { listComingUp, listNeedsYou, type CatchupItem } from './catchup';
 import { listPeople } from './knowledge';
 import { dutyTypeLabel, pluralise, relativeDay } from '@/lib/copy/labels';
@@ -38,28 +39,6 @@ export interface TeammateStandup {
 export interface Standup {
   teammates: TeammateStandup[];
   totalNeedsYou: number;
-}
-
-/** Which duty types belong to whom. */
-const OWNERSHIP: Record<string, string> = {
-  payroll_input_pack: 'holly',
-  salary_structure_review: 'holly',
-  tax_declaration_review: 'holly',
-  rules_setup: 'holly',
-  hiring_screen: 'hansel',
-  hiring_offer: 'hansel',
-  hiring_onboard: 'hansel',
-  records_audit: 'mira',
-  benefit_enrolment: 'dev',
-  benefits_review: 'dev',
-  review_cycle: 'sana',
-  performance_review: 'sana',
-  exit: 'noor',
-  final_settlement: 'noor',
-};
-
-function ownerOf(dutyType: string | null): string {
-  return dutyType ? (OWNERSHIP[dutyType] ?? 'holly') : 'holly';
 }
 
 export async function buildStandup(orgId: string): Promise<Standup> {

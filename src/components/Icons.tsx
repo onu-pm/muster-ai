@@ -98,3 +98,21 @@ export function SpinnerIcon({ size = 15 }: IconProps) {
     </svg>
   );
 }
+
+/** A panel with a rail down one side — the shape the sidebar collapses to. */
+export function CollapseIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ size = 15 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}

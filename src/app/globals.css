@@ -8,6 +8,9 @@
   --accent: #1a8a5c;
   --accent-hover: #14704a;
   --accent-soft: #dcf2e6;
+  /* The prompt box at rest, and on hover: present without shouting. */
+  --accent-edge: #c3e3d2;
+  --accent-soft-edge: #9ed4b7;
   --border: #e6e5dd;
   --error: #c0392b;
 
@@ -38,6 +41,7 @@
   --p6: #b5643f;
 
   --sidebar-width: 236px;
+  --sidebar-rail: 64px;
   --content-max: 880px;
   --content-max-wide: 1120px;
 
@@ -217,6 +221,10 @@ select {
 .sidebar {
   width: var(--sidebar-width);
   flex: 0 0 var(--sidebar-width);
+  transition:
+    width 0.22s var(--ease),
+    flex-basis 0.22s var(--ease),
+    padding 0.22s var(--ease);
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(8px);
   border-right: 1px solid var(--border);
@@ -228,14 +236,95 @@ select {
   height: 100vh;
 }
 
+.sidebarTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 4px 20px 0;
+}
+
 .wordmark {
   font-size: 20px;
   font-weight: 750;
   letter-spacing: -0.03em;
-  padding: 4px 10px 22px;
+  padding: 4px 0 0 10px;
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.railToggle {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.16s var(--ease),
+    color 0.16s var(--ease);
+}
+
+.railToggle:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Collapsed: an icon rail. The main area widens on its own, because the
+   shell is a flex row and this is the thing that was taking the space. */
+.sidebar[data-collapsed='true'] {
+  width: var(--sidebar-rail);
+  flex-basis: var(--sidebar-rail);
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.sidebar[data-collapsed='true'] .wordmarkText,
+.sidebar[data-collapsed='true'] .navLabel,
+.sidebar[data-collapsed='true'] .profileText {
+  display: none;
+}
+
+.sidebar[data-collapsed='true'] .sidebarTop {
+  flex-direction: column;
+  gap: 14px;
+  padding-right: 0;
+}
+
+.sidebar[data-collapsed='true'] .wordmark {
+  padding: 4px 0 0;
+  justify-content: center;
+}
+
+.sidebar[data-collapsed='true'] .wordmarkDot {
+  width: 11px;
+  height: 11px;
+}
+
+.sidebar[data-collapsed='true'] .navItem,
+.sidebar[data-collapsed='true'] .profileLink {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* A count still has to be visible when the label it sat beside is gone. */
+.sidebar[data-collapsed='true'] .navBadge {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  margin-left: 0;
+  min-width: 16px;
+  height: 16px;
+  font-size: 10px;
+  padding: 0 4px;
 }
 
 .wordmarkDot {
@@ -667,6 +756,11 @@ select {
   box-shadow: 0 0 0 3px rgba(31, 111, 74, 0.16);
 }
 
+/* Not connected, not a problem — grey, and no ring to draw the eye. */
+.statusDot-idle {
+  background: #d2d7cd;
+}
+
 .statusDot-busy {
   background: var(--accent);
   box-shadow: 0 0 0 3px rgba(31, 111, 74, 0.16);
@@ -860,23 +954,29 @@ select {
 
 .goalBox {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 8px 8px 8px 18px;
+  /* Two pixels and a tinted edge: this is the thing on the page to type in,
+     and it was reading as one more card among the cards. */
+  border: 2px solid var(--accent-edge);
+  border-radius: 20px;
+  padding: 9px 9px 9px 20px;
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   transition:
     border-color 0.16s var(--ease),
     box-shadow 0.16s var(--ease);
 }
 
+.goalBox:hover {
+  border-color: var(--accent-soft-edge);
+}
+
 .goalBox:focus-within {
   border-color: var(--accent);
   box-shadow:
-    var(--shadow-md),
-    0 0 0 3px rgba(31, 111, 74, 0.13);
+    var(--shadow-lg),
+    0 0 0 4px rgba(31, 111, 74, 0.14);
 }
 
 .goalInput {
@@ -885,12 +985,22 @@ select {
   border: 0;
   outline: none;
   background: transparent;
-  font-size: 15px;
-  padding: 12px 0;
+  font-size: 15.5px;
+  padding: 14px 0;
 }
 
 .goalInput::placeholder {
-  color: #a3a79f;
+  color: #9a9f96;
+}
+
+.goalBox .btn-primary {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
 }
 
 /* ---------- Lists ---------- */
@@ -1010,93 +1120,10 @@ select {
 /* ---------- Home: the conversation canvas ---------- */
 
 /*
- * Submitting a goal widens the column in place. The layout's content wrapper
- * owns the width, so the active thread reaches up and relaxes it rather than
- * the page being replaced.
+ * The team strip that used to sit above the conversation now lives in the rail
+ * on the right, where it stays visible while a thread runs instead of
+ * collapsing to make room. Its styles went with it.
  */
-.contentWrap:has(.threadActive) {
-  max-width: var(--content-max-wide);
-  transition: max-width 0.35s var(--ease);
-}
-
-.teamStrip {
-  display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-  margin-bottom: 32px;
-  scrollbar-width: none;
-  transition:
-    margin-bottom 0.3s var(--ease),
-    opacity 0.3s var(--ease);
-}
-
-.teamStrip::-webkit-scrollbar {
-  display: none;
-}
-
-.teamCardStatus {
-  margin-top: 14px;
-  gap: 7px;
-}
-
-.teamCardTag {
-  margin-top: 14px;
-}
-
-/* Collapsed: one line per teammate, so the thread gets the height. */
-.teamStrip[data-collapsed='true'] {
-  margin-bottom: 18px;
-}
-
-.teamStrip[data-collapsed='true'] .teamCard {
-  width: auto;
-  max-width: 230px;
-  padding: 7px 15px 7px 7px;
-  border-radius: 999px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 9px;
-}
-
-.teamStrip[data-collapsed='true'] .teamCard .avatar {
-  width: 26px;
-  height: 26px;
-  font-size: 11px;
-}
-
-.teamStrip[data-collapsed='true'] .teamCardRole,
-.teamStrip[data-collapsed='true'] .teamCardTag {
-  display: none;
-}
-
-.teamStrip[data-collapsed='true'] .teamCardHead {
-  gap: 9px;
-}
-
-.teamStrip[data-collapsed='true'] .teamCardStatus {
-  margin-top: 0;
-  flex: 0 0 auto;
-}
-
-.teamStrip[data-collapsed='true'] .teamCardStatus .strong {
-  display: none;
-}
-
-.teamStrip[data-collapsed='true'] .cardTitle {
-  font-size: 13.5px;
-}
-
-.teamCard {
-  width: 232px;
-  flex: 0 0 auto;
-  height: 100%;
-  transition:
-    width 0.3s var(--ease),
-    padding 0.3s var(--ease),
-    border-radius 0.3s var(--ease);
-}
 
 .threadPane {
   min-height: min(56vh, 560px);
@@ -1206,4 +1233,212 @@ select {
   padding-left: 15px;
   border-left: 2px solid var(--border);
   margin-left: 13px;
+}
+
+/* Visible to a screen reader, not to anyone looking at the page. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Home: work on the left, the team and the state on the right ---------- */
+
+/* Home carries a rail, so it gets the wide measure. Every other page keeps
+   the reading width, which is the point of capping it in the first place. */
+.contentWrap:has(.homeGrid) {
+  max-width: var(--content-max-wide);
+}
+
+.homeGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 30px;
+  align-items: start;
+}
+
+.homeMain {
+  min-width: 0;
+}
+
+.homeRail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: sticky;
+  top: 32px;
+}
+
+.railPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 15px 16px;
+}
+
+.railHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+.railTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.railLink {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+.railLink:hover {
+  text-decoration: underline;
+}
+
+/* A teammate, one row, with what they are actually doing under their name. */
+.mateRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 8px;
+  margin: 0 -8px;
+  border-radius: 10px;
+  transition: background 0.16s var(--ease);
+}
+
+a.mateRow:hover {
+  background: var(--surface-2);
+}
+
+.mateBody {
+  min-width: 0;
+  flex: 1;
+  /* The name and what they are doing are two lines, not one sentence. */
+  display: flex;
+  flex-direction: column;
+}
+
+.mateName {
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.mateWhat {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+.mateDot {
+  flex: 0 0 auto;
+  margin-top: 6px;
+}
+
+/* What is connected, and what is not. */
+.connRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.connName {
+  flex: 1;
+  min-width: 0;
+}
+
+.connState {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.connState[data-on='true'] {
+  color: var(--accent);
+}
+
+.railRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 8px;
+  margin: 0 -8px;
+  border-radius: 10px;
+  font-size: 13px;
+  transition: background 0.16s var(--ease);
+}
+
+.railRow:hover {
+  background: var(--surface-2);
+}
+
+.railRow + .railRow {
+  border-top: 1px solid var(--border);
+}
+
+.railMeta {
+  font-size: 11.5px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+/* ---------- Suggestions under the prompt ---------- */
+
+.suggestRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.suggestChip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 550;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    border-color 0.16s var(--ease),
+    background 0.16s var(--ease),
+    color 0.16s var(--ease);
+}
+
+.suggestChip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.suggestChip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 1080px) {
+  .homeGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .homeRail {
+    position: static;
+  }
 }
