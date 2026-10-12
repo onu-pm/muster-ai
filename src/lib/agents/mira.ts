@@ -17,7 +17,7 @@ import {
   findOpenDuty,
   listArtifactsFor,
   openDuty,
-  raiseException,
+  raiseOnce,
   recordStep,
   registerArtifact,
   setDutyState,
@@ -65,9 +65,14 @@ async function raiseGaps(
   let raised = 0;
 
   for (const group of groupByGap(blocked)) {
+    const signature = group.fields
+      .map((f) => f.key)
+      .sort()
+      .join('|');
+
     if (group.audits.length > GROUP_THRESHOLD) {
       const names = group.audits.map((a) => a.fullName);
-      const id = await raiseException(dutyId, {
+      const id = await raiseOnce(dutyId, `gap:${signature}`, {
         kind: 'record_incomplete',
         conclusion:
           `${pluralise(group.audits.length, 'person', 'people')} can't be paid — ${missingPhrase(group.fields)} for any of them. ` +
@@ -90,7 +95,7 @@ async function raiseGaps(
     }
 
     for (const audit of group.audits) {
-      const id = await raiseException(dutyId, {
+      const id = await raiseOnce(dutyId, `gap:${signature}:${audit.personId}`, {
         kind: 'record_incomplete',
         conclusion: `${audit.fullName} ${consequence(audit)}. ${audit.blocking[0].because}`,
         confidence: 0.98,

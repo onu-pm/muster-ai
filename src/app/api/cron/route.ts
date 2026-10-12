@@ -44,12 +44,32 @@ function nextOccurrence(from: Date, recurrence: string | null): Date {
 }
 
 export async function GET(request: NextRequest) {
-  // Vercel signs cron requests; refuse anything else so this cannot be
-  // triggered by whoever finds the URL.
+  /*
+   * Fails closed, deliberately.
+   *
+   * Vercel attaches `Authorization: Bearer $CRON_SECRET` to a scheduled
+   * request, but only when CRON_SECRET is set. This check used to be skipped
+   * entirely when it was unset, which meant that on a deployment without the
+   * variable configured the endpoint ran a payroll month and every sweep for
+   * every organisation for anyone who sent it a GET. That is exactly what it
+   * was written to prevent.
+   *
+   * So an unset secret now refuses rather than runs. The schedule stops and
+   * says why, which is a visible problem; the alternative was an invisible one.
+   */
   const secret = process.env.CRON_SECRET;
-  const auth = request.headers.get('authorization');
 
-  if (secret && auth !== `Bearer ${secret}`) {
+  if (!secret) {
+    return NextResponse.json(
+      {
+        error:
+          'CRON_SECRET is not set, so this endpoint cannot tell a scheduled request from anyone else and refuses to run.',
+      },
+      { status: 503 },
+    );
+  }
+
+  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 401 });
   }
 

@@ -21,6 +21,7 @@ import {
   listDuties,
   openDuty,
   raiseException,
+  raiseOnce,
   recordStep,
   setDutyState,
 } from '@/lib/data/duties';
@@ -565,7 +566,13 @@ export async function sweepReviews(
   );
 
   const worst = slipped[0];
-  const id = await raiseException(dutyId, {
+  // One finding per set of overdue people, not one per night.
+  const signature = slipped
+    .map((s) => s.personId)
+    .sort()
+    .join('|');
+
+  const id = await raiseOnce(dutyId, `overdue:${signature}`, {
     kind: 'review_overdue',
     conclusion: `${pluralise(slipped.length, 'review has', 'reviews have')} gone past the window — the longest is ${worst.fullName}, ${worst.overdueDays} ${worst.overdueDays === 1 ? 'day' : 'days'} over. ${worst.because}`,
     confidence: 0.95,

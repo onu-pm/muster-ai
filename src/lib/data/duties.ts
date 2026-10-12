@@ -216,6 +216,44 @@ export async function raiseException(
 }
 
 /**
+ * Raises something only if the same finding is not already waiting.
+ *
+ * A sweep runs every night. Without this, the same finding is added to the desk
+ * every night until somebody acts on it, and a desk that grows on its own is a
+ * desk nobody reads. The key is stored in the payload rather than matched on
+ * the sentence, so rewording a conclusion does not produce a duplicate.
+ *
+ * Returns the exception id if one was raised, or null if it was already there.
+ */
+export async function raiseOnce(
+  dutyId: string,
+  dedupeKey: string,
+  exception: {
+    kind: string;
+    conclusion: string;
+    confidence: number;
+    payload?: Record<string, unknown>;
+  },
+): Promise<string | null> {
+  const { data } = await createAdminClient()
+    .from('exceptions')
+    .select('id, payload')
+    .eq('duty_instance_id', dutyId)
+    .eq('kind', exception.kind)
+    .eq('status', 'open');
+
+  for (const row of data ?? []) {
+    const payload = (row.payload as Record<string, unknown> | null) ?? {};
+    if (payload.dedupeKey === dedupeKey) return null;
+  }
+
+  return raiseException(dutyId, {
+    ...exception,
+    payload: { ...(exception.payload ?? {}), dedupeKey },
+  });
+}
+
+/**
  * Withdraws an earlier proposal that a recomputation has replaced.
  *
  * Two open approvals for the same settlement is how somebody gets paid twice,
