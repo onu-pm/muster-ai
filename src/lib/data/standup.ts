@@ -146,6 +146,14 @@ export async function buildStandup(orgId: string): Promise<Standup> {
     const did: string[] = [];
     const next: string[] = [];
 
+    /*
+     * A nightly sweep writes the same sentence every night, so the same line
+     * would otherwise be read out three times in one standup. Only the most
+     * recent of each distinct thing said is kept — repeating yourself is what
+     * a report does, not a colleague.
+     */
+    const alreadySaid = new Set<string>();
+
     for (const step of recent) {
       const duty = Array.isArray(step.duty_instances)
         ? step.duty_instances[0]
@@ -153,9 +161,11 @@ export async function buildStandup(orgId: string): Promise<Standup> {
       if (ownerOf(duty?.duty_type ?? null) !== mate.key) continue;
 
       const summary = step.output?.summary;
-      if (typeof summary === 'string' && summary && did.length < 3) {
-        did.push(summary);
-      }
+      if (typeof summary !== 'string' || !summary) continue;
+      if (alreadySaid.has(summary)) continue;
+
+      alreadySaid.add(summary);
+      if (did.length < 3) did.push(summary);
     }
 
     const theirs = needsYou.filter(
