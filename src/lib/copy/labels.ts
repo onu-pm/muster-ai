@@ -37,6 +37,14 @@ export const EXCEPTION_KIND_LABELS: Record<string, string> = {
   missing_proof: 'Investment proof not submitted',
   proof_over_cap: 'Declared amount is above the legal limit',
   structure_missing: 'No salary structure on record',
+  record_incomplete: 'A file is missing something before they can be paid',
+  benefit_enrolment_proposed: 'An addition to the group cover is waiting for you',
+  benefit_removal_proposed: 'Someone would come off the group cover',
+  review_cycle_proposed: 'A review cycle is waiting for you to start it',
+  review_overdue: 'A review has slipped past its window',
+  review_outcome_recorded: 'A review outcome is waiting for you to confirm',
+  settlement_proposed: 'A final settlement is waiting for your approval',
+  exit_blocked: 'An exit cannot be settled yet',
 };
 
 export function exceptionKindLabel(
@@ -64,6 +72,16 @@ export const EXCEPTION_RULE_LINES: Record<string, string> = {
   proposed_rule: 'A rule takes effect only once you confirm it.',
   proof_over_cap:
     'Each investment category is capped at the statutory limit for the year.',
+  record_incomplete:
+    'Nobody is included in a run until there is somewhere to send the money.',
+  benefit_enrolment_proposed:
+    'Nobody is added to a policy, and no premium is started, without someone approving it.',
+  benefit_removal_proposed:
+    'Cover is never ended automatically. A claim refused after an exit is worse than a month of extra premium.',
+  review_overdue:
+    'A review is due a set number of months after the last one, within a fixed window.',
+  settlement_proposed:
+    'A final settlement is the last payment an employer makes, so it is always approved by a person before it goes out.',
 };
 
 export function exceptionRuleLine(
@@ -90,6 +108,16 @@ export const DUTY_TYPE_LABELS: Record<string, string> = {
   salary_structure_review: 'Salary structure review',
   tax_declaration_review: 'Tax declaration review',
   rules_setup: 'Setting up a rule',
+  hiring_screen: 'Reading an application',
+  hiring_offer: 'Drawing up an offer',
+  hiring_onboard: 'Getting a joiner onto the books',
+  records_audit: 'Checking files for what is missing',
+  benefit_enrolment: 'Adding someone to the group cover',
+  benefits_review: 'Reviewing who is covered',
+  review_cycle: 'A performance review cycle',
+  performance_review: 'One person\u2019s review',
+  exit: 'Working through an exit',
+  final_settlement: 'Working out a final settlement',
 };
 
 export const dutyTypeLabel = (v?: string | null) =>
@@ -110,6 +138,13 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   explain: 'Worked out why the numbers differ',
   execute: 'Calculated the figures',
   verify: 'Checked a document against what was declared',
+  audit_records: 'Checked files for what is missing',
+  enrol: 'Drew up group cover',
+  review_cover: 'Reviewed who is covered',
+  open_cycle: 'Opened a review cycle',
+  record_review: 'Recorded a review outcome',
+  begin_exit: 'Started an exit',
+  settle: 'Worked out a final settlement',
 };
 
 export const capabilityLabel = (v?: string | null) =>
@@ -133,6 +168,10 @@ export const RULE_LABELS: Record<string, string> = {
   pt_slab: 'Professional tax slabs',
   ctc_breakup: 'How a salary is split',
   lop_calculation: 'How loss of pay is worked out',
+  leave_policy: 'Leave entitlement and encashment',
+  notice_policy: 'Notice periods and recovery',
+  benefits_policy: 'Group cover and premiums',
+  review_policy: 'How review cycles run',
 };
 
 export const RULE_DESCRIPTIONS: Record<string, string> = {
@@ -143,6 +182,13 @@ export const RULE_DESCRIPTIONS: Record<string, string> = {
   pt_slab: 'Professional tax due at each salary band, by state.',
   ctc_breakup: 'The percentages a new salary is broken into.',
   lop_calculation: 'The divisor used to turn a day of absence into an amount.',
+  leave_policy:
+    'Days earned a year, how many carry forward, and how many can be paid out.',
+  notice_policy:
+    'How much notice is required and what is recovered when it is not served.',
+  benefits_policy:
+    'What group cover you offer, for how much, and who pays the premium.',
+  review_policy: 'How often reviews run and how long after probation they start.',
 };
 
 export function ruleLabel(
@@ -228,6 +274,20 @@ export const ARTIFACT_TYPE_LABELS: Record<string, string> = {
   rent_receipts: 'Rent receipts',
   home_loan_interest: 'Home loan interest certificate',
   attendance_sheet: 'Attendance sheet',
+  signed_offer: 'Signed offer letter',
+  pan_card: 'PAN card',
+  aadhaar: 'Aadhaar',
+  bank_proof: 'Bank account proof',
+  cancelled_cheque: 'Cancelled cheque',
+  previous_payslip: 'Payslip from a previous employer',
+  relieving_letter: 'Relieving letter',
+  education_certificate: 'Education certificate',
+  resignation_letter: 'Resignation letter',
+  experience_letter: 'Experience letter',
+  cv: 'CV',
+  form_11: 'Provident fund declaration (Form 11)',
+  nominee_form: 'Nomination form',
+  insurance_card: 'Insurance card',
 };
 
 export const artifactTypeLabel = (v?: string | null) =>
@@ -375,4 +435,68 @@ export function countLine(n: number): string {
 
 export function pluralise(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
+}
+
+/* ---------- Group cover ---------- */
+
+export const COVER_KIND_LABELS: Record<string, string> = {
+  group_medical: 'Group medical cover',
+  group_accident: 'Group personal accident cover',
+  group_term_life: 'Group term life cover',
+};
+
+export const coverKindLabel = (v?: string | null) =>
+  lookup(COVER_KIND_LABELS, v);
+
+/* ---------- Reviews ---------- */
+
+export const REVIEW_OUTCOME_LABELS: Record<string, string> = {
+  exceeded: 'Exceeded what the role asked for',
+  met: 'Met what the role asked for',
+  developing: 'Developing into the role',
+  below: 'Below what the role asked for',
+};
+
+export const reviewOutcomeLabel = (v?: string | null) =>
+  lookup(REVIEW_OUTCOME_LABELS, v);
+
+export const CYCLE_FREQUENCY_LABELS: Record<string, string> = {
+  annual: 'Once a year',
+  half_yearly: 'Twice a year',
+  quarterly: 'Every quarter',
+};
+
+export const cycleFrequencyLabel = (v?: string | null) =>
+  lookup(CYCLE_FREQUENCY_LABELS, v);
+
+export const REVIEW_REASON_LABELS: Record<string, string> = {
+  cycle: 'Regular review',
+  confirmation: 'Confirmation after probation',
+};
+
+export const reviewReasonLabel = (v?: string | null) =>
+  lookup(REVIEW_REASON_LABELS, v);
+
+/* ---------- Exits ---------- */
+
+export const EXIT_REASON_LABELS: Record<string, string> = {
+  resignation: 'Resigned',
+  termination: 'Let go',
+  retirement: 'Retired',
+  death: 'Died in service',
+  disablement: 'Left through disablement',
+};
+
+export const exitReasonLabel = (v?: string | null) =>
+  lookup(EXIT_REASON_LABELS, v);
+
+/**
+ * A settlement line, said the way it would be said out loud. A negative amount
+ * is money coming back off what someone is owed, and it says so rather than
+ * showing a minus sign and leaving it to be worked out.
+ */
+export function settlementLine(label: string, amount: number): string {
+  return amount < 0
+    ? `${label}: ${formatMoney(Math.abs(amount))} back`
+    : `${label}: ${formatMoney(amount)}`;
 }

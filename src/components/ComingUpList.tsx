@@ -33,17 +33,21 @@ export function ComingUpList({
     [items],
   );
 
+  /*
+   * Read once, on mount, rather than on every render. "Overdue" has to mean the
+   * same thing for every row in one pass — reading the clock per row lets two
+   * rows be judged against two different nows.
+   */
+  const [now] = useState(() => Date.now());
+
   const filtered = items.filter((item) => {
     if (type !== 'all' && item.dutyType !== type) return false;
     if (state !== 'all' && item.state !== state) return false;
     if (when !== 'all') {
       if (!item.dueAt) return false;
       const due = new Date(item.dueAt).getTime();
-      if (when === 'overdue' && due >= Date.now()) return false;
-      if (
-        when === 'week' &&
-        (due < Date.now() || due > Date.now() + 7 * 86_400_000)
-      ) {
+      if (when === 'overdue' && due >= now) return false;
+      if (when === 'week' && (due < now || due > now + 7 * 86_400_000)) {
         return false;
       }
     }

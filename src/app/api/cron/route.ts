@@ -3,16 +3,30 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { runInput } from '@/lib/agents/input';
 import { runStructure } from '@/lib/agents/structure';
 import { runTax } from '@/lib/agents/tax';
+import { listFullPeopleAsService } from '@/lib/data/people-records';
+import { sweepRecords } from '@/lib/agents/mira';
+import { sweepBenefits } from '@/lib/agents/dev';
+import { sweepReviews } from '@/lib/agents/sana';
+import { sweepExits } from '@/lib/agents/noor';
 
 /**
  * The scheduled runner.
  *
- * Vercel calls this daily (see vercel.json). It finds schedules due today and
- * runs the month for each organisation, then moves the schedule on.
+ * Vercel calls this daily (see vercel.json). Two things happen, in order:
  *
- * It does not decide anything. A run gathers, reconciles and projects, and puts
- * whatever it cannot settle on the desk — exactly as it does when someone asks
- * in the chat. Nobody is paid and nothing is filed without a person.
+ *  1. Any payroll schedule due today is run for its organisation, and moved on.
+ *  2. Every organisation gets a sweep: Mira checks the files, Dev looks for
+ *     people eligible for cover who are not on it, Sana finds the reviews that
+ *     have slipped, and Noor closes the exits whose settlement has been
+ *     approved and whose last day has passed.
+ *
+ * Nothing here decides anything. A sweep gathers and puts what it cannot settle
+ * on the desk, exactly as it does when somebody asks in the chat. Nobody is
+ * paid, nothing is filed, nobody is added to or taken off an insurance policy,
+ * and nobody is moved off the roster while money is still owed to them.
+ *
+ * No model is called from this path at all. Every sweep runs on the tested rule
+ * code, which is what makes it safe to run while nobody is watching.
  */
 
 export const maxDuration = 300;
@@ -55,6 +69,8 @@ export async function GET(request: NextRequest) {
   const period = previousMonth(new Date());
   const ran: Record<string, unknown>[] = [];
 
+  /* ---- 1. Payroll schedules that fall due today ---- */
+
   for (const schedule of due ?? []) {
     const orgId = schedule.org_id as string;
 
@@ -79,8 +95,7 @@ export async function GET(request: NextRequest) {
       ran.push({
         orgId,
         ok: false,
-        error:
-          runError instanceof Error ? runError.message : 'Run failed.',
+        error: runError instanceof Error ? runError.message : 'Run failed.',
       });
     }
 
@@ -89,16 +104,72 @@ export async function GET(request: NextRequest) {
     await admin
       .from('deadlines')
       .update({
-        date: nextOccurrence(new Date(schedule.date as string), schedule.recurrence as string | null)
+        date: nextOccurrence(
+          new Date(schedule.date as string),
+          schedule.recurrence as string | null,
+        )
           .toISOString()
           .slice(0, 10),
       })
       .eq('id', schedule.id);
   }
 
+  /* ---- 2. The daily sweep, for every organisation ---- */
+
+  const { data: orgs } = await admin
+    .from('org_teams')
+    .select('org_id, enabled, teams!inner ( key )')
+    .eq('enabled', true);
+
+  /*
+   * A teammate only sweeps for an organisation that has switched them on.
+   * Deactivating somebody has to actually stop them picking up new work, or
+   * the control on their page means nothing.
+   */
+  const switchedOn = new Map<string, Set<string>>();
+  for (const row of orgs ?? []) {
+    const joined = row.teams as { key: string } | { key: string }[] | null;
+    const key = Array.isArray(joined) ? joined[0]?.key : joined?.key;
+    if (!key) continue;
+    const orgId = row.org_id as string;
+    const set = switchedOn.get(orgId) ?? new Set<string>();
+    set.add(key);
+    switchedOn.set(orgId, set);
+  }
+
+  const swept: Record<string, unknown>[] = [];
+
+  for (const [orgId, teams] of switchedOn) {
+    const result: Record<string, unknown> = { orgId };
+
+    try {
+      const people = await listFullPeopleAsService(orgId);
+      result.people = people.length;
+
+      if (teams.has('records_documents')) {
+        result.records = await sweepRecords(orgId, people);
+      }
+      if (teams.has('benefits_insurance')) {
+        result.benefits = await sweepBenefits(orgId, people);
+      }
+      if (teams.has('performance_reviews')) {
+        result.reviews = await sweepReviews(orgId, people);
+      }
+      if (teams.has('exits_settlement')) {
+        result.exits = await sweepExits(orgId, people);
+      }
+    } catch (sweepError) {
+      result.error =
+        sweepError instanceof Error ? sweepError.message : 'Sweep failed.';
+    }
+
+    swept.push(result);
+  }
+
   return NextResponse.json({
     checked: due?.length ?? 0,
     period: `${period.year}-${String(period.month).padStart(2, '0')}`,
     ran,
+    swept,
   });
 }

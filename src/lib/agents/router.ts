@@ -12,6 +12,10 @@ export { readMoney, readPersonName } from './parse-input';
 // Importing these registers their capabilities.
 import './holly-capabilities';
 import './hansel';
+import './mira';
+import './dev';
+import './sana';
+import './noor';
 import './query-capabilities';
 
 /**

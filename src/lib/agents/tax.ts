@@ -1,6 +1,6 @@
 import 'server-only';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getConfirmedRule } from '@/lib/data/rules';
+import { getConfirmedRuleAsService } from '@/lib/data/rules';
 import { listPeople } from '@/lib/data/knowledge';
 import { capDeduction, computeAnnualTax } from '@/lib/rules/tax';
 import type { Regime } from '@/lib/rules/tax-tables';
@@ -40,7 +40,7 @@ export async function runTax(
 
   const [people, rule, declarationsRes] = await Promise.all([
     listPeople(orgId),
-    getConfirmedRule(orgId, 'proof_category_cap'),
+    getConfirmedRuleAsService(orgId, 'proof_category_cap'),
     admin
       .from('tax_declarations')
       .select('id, person_id, financial_year, regime, declared, verified_exemptions')

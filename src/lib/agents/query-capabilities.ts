@@ -2,16 +2,10 @@ import 'server-only';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { listPeople, listFacts } from '@/lib/data/knowledge';
 import { listConfirmedRules } from '@/lib/data/rules';
-import { listNeedsYou, listComingUp } from '@/lib/data/catchup';
+import { buildStandup } from '@/lib/data/standup';
 import { register } from './registry';
 import { MONTHS } from './intent';
-import {
-  dutyTypeLabel,
-  formatMoney,
-  personTypeLabel,
-  pluralise,
-  ruleLabel,
-} from '@/lib/copy/labels';
+import { formatMoney, pluralise, ruleLabel } from '@/lib/copy/labels';
 
 /**
  * Questions people actually ask.
@@ -226,38 +220,51 @@ register({
   teammate: HOLLY,
   describe: 'what the whole team is working on and what they need',
   async run(ctx) {
-    const [needsYou, comingUp, people] = await Promise.all([
-      listNeedsYou(ctx.orgId),
-      listComingUp(ctx.orgId),
-      listPeople(ctx.orgId),
-    ]);
+    const standup = await buildStandup(ctx.orgId);
+    const messages: { from: string; body: string }[] = [];
 
-    const candidates = people.filter((p) => p.type === 'candidate').length;
-    const messages = [];
+    /*
+     * One source of truth with the Catchup page. The chat version is the same
+     * standup said out loud: each teammate speaks for themselves, in order,
+     * and a quiet one says so rather than being left out — a teammate missing
+     * from a standup reads as a teammate who is broken.
+     */
+    for (const mate of standup.teammates) {
+      if (mate.quiet) {
+        messages.push({ from: mate.name, body: 'Nothing from me today.' });
+        continue;
+      }
 
-    messages.push({
-      from: HOLLY,
-      body:
-        comingUp.length === 0
-          ? 'Nothing in flight on my side.'
-          : `${pluralise(comingUp.length, 'job', 'jobs')} in flight on my side, including ${dutyTypeLabel(comingUp[0].dutyType).toLowerCase()}.`,
-    });
+      if (mate.did.length > 0) {
+        messages.push({ from: mate.name, body: mate.did[0] });
+      }
 
-    if (needsYou.length > 0) {
+      if (mate.needsYou.length > 0) {
+        messages.push({
+          from: mate.name,
+          body: `${pluralise(mate.needsYou.length, 'thing needs', 'things need')} a decision from you — ${mate.needsYou[0].conclusion}`,
+        });
+      }
+
+      if (mate.next.length > 0 && mate.did.length === 0) {
+        messages.push({ from: mate.name, body: mate.next[0] });
+      }
+    }
+
+    if (messages.length === 0) {
       messages.push({
         from: HOLLY,
-        body: `${pluralise(needsYou.length, 'thing needs', 'things need')} a decision from you.`,
+        body: 'Quiet across the whole team — nothing in flight and nothing waiting on you.',
       });
     }
 
-    messages.push({
-      from: HANSEL,
-      body:
-        candidates === 0
-          ? 'Nothing moving on hiring right now.'
-          : `${pluralise(candidates, 'candidate', 'candidates')} in the pipeline on mine.`,
-    });
-
-    return { ok: true, messages, data: { needsYou: needsYou.length } };
+    return {
+      ok: true,
+      messages,
+      data: {
+        needsYou: standup.totalNeedsYou,
+        teammates: standup.teammates.length,
+      },
+    };
   },
 });

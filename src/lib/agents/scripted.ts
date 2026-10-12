@@ -38,8 +38,9 @@ export function scriptedSmallTalk(
       return ["Right you are — I'll keep an eye on things."];
     case 'capabilities':
       return [
-        "I run payroll and keep the statutory side straight — attendance and leave, pay structures, tax declarations. Hansel handles hiring: CVs, offers, getting a joiner onto the books.",
-        'Ask for a month to be run, ask about a person, or ask what we know. Neither of us pays anyone or files anything without you.',
+        'There are six of us. I run payroll and the statutory side — attendance and leave, pay structures, tax. Hansel does hiring, from a CV to a first day that works.',
+        'Mira keeps the files complete and tells you what each gap actually stops. Dev looks after group cover. Sana runs reviews and shows you which ones have slipped. Noor works an exit through notice, gratuity and the final settlement.',
+        'You never have to pick one of us — say what you need and whoever owns it picks it up, pulling the others in as they go. None of us pays anyone, files anything or sends anything to an insurer without you approving it first.',
       ];
   }
 }
@@ -57,7 +58,7 @@ export function scriptedWhenOutOfQuota(facts: Factsheet): string[] {
   ];
 
   lines.push(
-    'Running a month, looking someone up, the roster and the hiring pipeline all still work — none of those need it.',
+    'Running a month, looking someone up, the roster, the hiring pipeline, what is missing from the files, who is covered, which reviews have slipped and every exit all still work — none of those need it.',
   );
 
   return lines;

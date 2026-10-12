@@ -14,6 +14,11 @@ type Range = 'all' | '7' | '30';
 export function ActivityTab({ entries }: { entries: ActivityEntry[] }) {
   const [person, setPerson] = useState('all');
   const [range, setRange] = useState<Range>('all');
+  /*
+   * Read once, on mount. Every entry in one pass has to be measured against
+   * the same now, or two rows get judged against two different cut-offs.
+   */
+  const [now] = useState(() => Date.now());
 
   const people = useMemo(
     () =>
@@ -24,7 +29,7 @@ export function ActivityTab({ entries }: { entries: ActivityEntry[] }) {
   const filtered = entries.filter((entry) => {
     if (person !== 'all' && entry.personName !== person) return false;
     if (range !== 'all') {
-      const cutoff = Date.now() - Number(range) * 86_400_000;
+      const cutoff = now - Number(range) * 86_400_000;
       if (new Date(entry.at).getTime() < cutoff) return false;
     }
     return true;

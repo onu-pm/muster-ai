@@ -9,7 +9,7 @@ import {
   yearsOfExperience,
   type ParsedCv,
 } from '@/lib/hiring/cv';
-import { register, type CapabilityResult } from './registry';
+import { register } from './registry';
 import { formatMoney } from '@/lib/copy/labels';
 
 /**
@@ -325,10 +325,31 @@ register({
       (v) => Number(v) > 0,
     );
 
+    /*
+     * The file itself is Mira's desk, not his. He asks her rather than
+     * reporting every item as outstanding, which is what he used to do and
+     * which was wrong the moment any of it was actually collected.
+     */
+    const file = await ctx.invoke('records.check_person', {
+      personId: person.id,
+    });
+
+    const missingOnFile = Array.isArray(file.data?.missing)
+      ? (file.data!.missing as string[])
+      : [];
+
     const outstanding = ONBOARDING_CHECKLIST.filter((item) => {
       if (item.key === 'structure') return !hasStructure;
-      // The rest live on the person record, which this project does not yet
-      // capture for candidates. Reported as outstanding rather than assumed.
+      if (item.key === 'pan') return missingOnFile.includes('pan');
+      if (item.key === 'bank') {
+        return (
+          missingOnFile.includes('bank_account') ||
+          missingOnFile.includes('bank_ifsc')
+        );
+      }
+      if (item.key === 'uan') return missingOnFile.includes('uan');
+      // A signed offer is a document, and whether one is on file is not
+      // something the person record can answer. Always asked about.
       return true;
     });
 
@@ -356,6 +377,8 @@ register({
         ],
       };
     }
+
+    messages.push(...file.messages);
 
     messages.push({
       from: HANSEL,

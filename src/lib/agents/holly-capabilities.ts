@@ -25,7 +25,6 @@ register({
   teammate: HOLLY,
   describe: 'split an annual package into a compliant monthly structure',
   async run(ctx, input) {
-    const name = String(input.name ?? 'them');
     const annualCtc = Number(input.annualCtc);
     const personId = input.personId ? String(input.personId) : null;
 

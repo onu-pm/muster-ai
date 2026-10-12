@@ -52,7 +52,10 @@ export function matchSmallTalk(text: string): SmallTalk | null {
 }
 
 const PERSON_AFTER =
-  /(?:of|for|does|is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/;
+  /(?:of|for|does|is|on)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/;
+
+/** "Priya's file", "Rahul Menon's documents". */
+const POSSESSIVE = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})'s\b/;
 
 interface Rule {
   when: RegExp;
@@ -101,6 +104,82 @@ const RULES: Rule[] = [
     // "how's the team doing", "team update", "standup"
     when: /\b(standup|stand-up|team update|how(?:'s| is) the team|what(?:'s| is) everyone)\b/i,
     to: () => ({ capability: 'team.standup', input: {} }),
+  },
+
+  /* ---- Records ---- */
+  {
+    // "what's missing", "whose file is incomplete", "are records complete"
+    when: /\b(what(?:'s| is) missing|missing (?:details|documents|information)|incomplete (?:records?|files?)|records? (?:audit|check|complete)|check (?:the )?(?:records|files))\b|\b(?:records?|files?|paperwork)\b(?:\s+\w+){0,2}\s+\b(?:incomplete|missing)\b/i,
+    unless: /\bof\s+[A-Z]/,
+    to: () => ({ capability: 'records.audit', input: {} }),
+  },
+  {
+    // "what's on Priya's file", "Rahul's documents"
+    when: /\b(file|record|documents?|paperwork)\b/i,
+    unless: /\b(run|audit|register|all|everyone|missing)\b/i,
+    to: (text) => {
+      const name =
+        text.match(PERSON_AFTER)?.[1] ?? text.match(POSSESSIVE)?.[1] ?? null;
+      return name
+        ? { capability: 'records.person_file', input: { name } }
+        : null;
+    },
+  },
+  {
+    // "can we produce the registers", "statutory registers"
+    when: /\b(statutory register|registers?|form 11|muster roll|inspection ready)\b/i,
+    to: () => ({ capability: 'records.statutory_registers', input: {} }),
+  },
+
+  /* ---- Benefits ---- */
+  {
+    // "who's covered", "insurance", "group cover", "mediclaim"
+    when: /\b(group cover|who(?:'s| is| are) covered|insurance|insured|mediclaim|medical cover|gmc|gpa|benefits?)\b/i,
+    unless: /\b(add|enrol|enroll|remove|claim)\b/i,
+    to: () => ({ capability: 'benefits.coverage', input: {} }),
+  },
+  {
+    // "who isn't covered", "cover gaps"
+    when: /\b(not covered|without cover|cover gaps?|uncovered|missing cover)\b/i,
+    to: () => ({ capability: 'benefits.gaps', input: {} }),
+  },
+
+  /* ---- Reviews ---- */
+  {
+    // "whose review is due", "overdue reviews", "appraisals"
+    // "whose review is due", "is Priya's review overdue", "any appraisals due"
+    when: /\breviews?\b(?:\s+\w+){0,2}\s+\b(due|overdue|pending)\b|\b(due|overdue|pending)\b(?:\s+\w+){0,2}\s+\breviews?\b|\bappraisals?\b|\bwho needs a review\b/i,
+    to: () => ({ capability: 'performance.due_reviews', input: {} }),
+  },
+  {
+    // "how's the review cycle going", "review cycle status"
+    when: /\b(review cycle|appraisal cycle|performance cycle)\b/i,
+    unless: /\b(start|open|begin|run)\b/i,
+    to: () => ({ capability: 'performance.cycle_status', input: {} }),
+  },
+  {
+    // "who's on probation", "probation confirmations"
+    when: /\b(probation|confirmations?)\b/i,
+    to: () => ({ capability: 'performance.due_reviews', input: {} }),
+  },
+
+  /* ---- Exits ---- */
+  {
+    // "who's leaving", "exits in flight", "resignations"
+    when: /\b(who(?:'s| is| are) leaving|exits?(?: in flight)?|resignations?|offboarding|notice period)\b/i,
+    // A question about the notice *rule* belongs with the rules, not with a
+    // list of who is on their way out.
+    unless: /\b(settle|settlement|final|f&f|start|begin|process|policy|rule|rules)\b/i,
+    to: () => ({ capability: 'exits.status', input: {} }),
+  },
+  {
+    // "what's outstanding on Priya's exit"
+    when: /\b(exit (?:checklist|clearance)|outstanding on|clearance for)\b/i,
+    to: (text) => {
+      const name =
+        text.match(PERSON_AFTER)?.[1] ?? text.match(POSSESSIVE)?.[1] ?? null;
+      return name ? { capability: 'exits.checklist', input: { name } } : null;
+    },
   },
 ];
 

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export interface RuleRow {
   id: string;
@@ -52,6 +53,8 @@ export async function listConfirmedRules(orgId: string): Promise<RuleRow[]> {
  * A confirmed rule by key. Agents call this before falling back to their own
  * default, so an organisation's own policy always wins.
  */
+const CONFIRMED_RULE_ORDER = { ascending: false } as const;
+
 export async function getConfirmedRule(
   orgId: string,
   ruleKey: string,
@@ -63,7 +66,35 @@ export async function getConfirmedRule(
     .eq('org_id', orgId)
     .eq('rule_key', ruleKey)
     .eq('confirmed', true)
-    .order('effective_from', { ascending: false })
+    .order('effective_from', CONFIRMED_RULE_ORDER)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return toRule(data);
+}
+
+/**
+ * The same read, for code that runs with nobody signed in.
+ *
+ * The scheduled runner has no user, so the RLS-scoped read above returns
+ * nothing for it — which is worse than failing, because the caller then falls
+ * back to the statutory default and silently ignores a rule the organisation
+ * confirmed. A wage definition or a proof cap dropped that way changes an
+ * amount, so unattended paths read with the service role and pass the
+ * organisation explicitly rather than inferring it.
+ */
+export async function getConfirmedRuleAsService(
+  orgId: string,
+  ruleKey: string,
+): Promise<RuleRow | null> {
+  const { data, error } = await createAdminClient()
+    .from('rules')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('rule_key', ruleKey)
+    .eq('confirmed', true)
+    .order('effective_from', CONFIRMED_RULE_ORDER)
     .limit(1)
     .maybeSingle();
 

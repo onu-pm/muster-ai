@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { resolveMemberOrg } from '@/lib/data/guard';
+import { dutyStateAfter } from '@/lib/data/duty-lifecycle';
 
 export type Outcome = 'approved' | 'rejected' | 'corrected';
 
@@ -150,10 +151,20 @@ export async function decideOnException(
       .eq('duty_instance_id', dutyId)
       .eq('status', 'open');
 
-    if ((count ?? 0) === 0) {
+    /*
+     * Closing is right for most duties but wrong for a few, and which it is
+     * depends on what was decided — approving group cover must not close the
+     * duty that *is* that cover. See lib/data/duty-lifecycle.ts.
+     */
+    const next = dutyStateAfter(exception.kind as string, outcome, count ?? 0);
+
+    if (next) {
       await admin
         .from('duty_instances')
-        .update({ state: 'closed', closed_at: now })
+        .update({
+          state: next,
+          closed_at: next === 'closed' ? now : null,
+        })
         .eq('id', dutyId);
     }
   }

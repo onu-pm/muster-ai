@@ -1,5 +1,10 @@
 import 'server-only';
 import { listConnections } from '@/lib/data/connections';
+import { listFullPeople } from '@/lib/data/people-records';
+import { createClient } from '@/lib/supabase/server';
+import { auditRecords } from '@/lib/rules/records';
+import { DEFAULT_BENEFIT_POLICY, eligibilityFor } from '@/lib/rules/benefits';
+import { DEFAULT_REVIEW_POLICY, dueReviews } from '@/lib/rules/review-cycle';
 import { listComingUp, listNeedsYou } from '@/lib/data/catchup';
 import { listConfirmedRules } from '@/lib/data/rules';
 import { listPeople, listDeadlines } from '@/lib/data/knowledge';
@@ -28,6 +33,11 @@ export interface Factsheet {
   openItems: { id: string; about: string; conclusion: string }[];
   inFlight: { what: string; state: string }[];
   schedules: { date: string; recurrence: string | null }[];
+  /** Mira's, Dev's, Sana's and Noor's headline figures. */
+  recordsBlocked: number;
+  coverGaps: number;
+  reviewsOverdue: number;
+  exitsInFlight: number;
 }
 
 export async function buildFactsheet(
@@ -35,7 +45,7 @@ export async function buildFactsheet(
   orgName: string,
   userName: string,
 ): Promise<Factsheet> {
-  const [people, connections, rules, open, comingUp, deadlines] =
+  const [people, connections, rules, open, comingUp, deadlines, records] =
     await Promise.all([
       listPeople(orgId),
       listConnections(orgId),
@@ -43,7 +53,56 @@ export async function buildFactsheet(
       listNeedsYou(orgId),
       listComingUp(orgId),
       listDeadlines(orgId),
+      listFullPeople(orgId),
     ]);
+
+  /*
+   * The other four teammates' headline figures, read the same way Holly's are.
+   * Without these the model has no idea the work exists, and routes everything
+   * it does not recognise to payroll. Defaults are used rather than each
+   * organisation's confirmed rules: this is a count for routing, not a figure
+   * anybody is paid from.
+   */
+  const supabase = await createClient();
+  const employeeRecords = records.filter((p) => p.type === 'employee');
+
+  const [enrolments, exits] = await Promise.all([
+    supabase
+      .from('duty_instances')
+      .select('subject_person_id')
+      .eq('org_id', orgId)
+      .eq('duty_type', 'benefit_enrolment')
+      .neq('state', 'closed'),
+    supabase
+      .from('duty_instances')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('duty_type', 'exit')
+      .neq('state', 'closed'),
+  ]);
+
+  const onCover = new Set(
+    (enrolments.data ?? []).map((row) => row.subject_person_id as string),
+  );
+
+  const recordsBlocked = auditRecords(employeeRecords).blocked.length;
+
+  const coverGaps = employeeRecords.filter(
+    (person) =>
+      !onCover.has(person.id) &&
+      eligibilityFor(person, DEFAULT_BENEFIT_POLICY).eligible.length > 0,
+  ).length;
+
+  const reviewsOverdue = dueReviews({
+    people: employeeRecords.map((p) => ({
+      id: p.id,
+      fullName: p.fullName,
+      type: p.type,
+      doj: p.doj,
+      lastReviewedOn: null,
+    })),
+    policy: DEFAULT_REVIEW_POLICY,
+  }).filter((r) => r.overdueDays > 0).length;
 
   const withStructure = people.filter((p) =>
     Object.values(p.salaryStructure).some((v) => Number(v) > 0),
@@ -77,6 +136,10 @@ export async function buildFactsheet(
       date: d.date,
       recurrence: d.recurrence,
     })),
+    recordsBlocked,
+    coverGaps,
+    reviewsOverdue,
+    exitsInFlight: (exits.data ?? []).length,
   };
 }
 
@@ -90,6 +153,10 @@ export async function buildFactsheet(
 export function describeFactsheetBrief(facts: Factsheet): string {
   return [
     `People on the roster: ${facts.peopleTotal} (${facts.peopleWithoutStructure} without a salary structure)`,
+    `Employees who cannot be paid yet because their file is short of something: ${facts.recordsBlocked}`,
+    `People eligible for group cover and not on it: ${facts.coverGaps}`,
+    `Reviews past their window: ${facts.reviewsOverdue}`,
+    `Exits in flight: ${facts.exitsInFlight}`,
     `Can read attendance: ${facts.hasAttendanceSource ? 'yes' : 'no'}`,
     `Confirmed rules: ${facts.confirmedRules.length}`,
     `Waiting on a decision: ${facts.openItems.length}`,
@@ -112,6 +179,10 @@ export function describeFactsheet(facts: Factsheet): string {
     `Confirmed rules in use: ${
       facts.confirmedRules.length ? facts.confirmedRules.join('; ') : 'none'
     }`,
+    `Employees who cannot be paid yet because their file is incomplete: ${facts.recordsBlocked}`,
+    `People eligible for group cover who are not on it: ${facts.coverGaps}`,
+    `Reviews that have gone past their window: ${facts.reviewsOverdue}`,
+    `Exits being worked through: ${facts.exitsInFlight}`,
   ];
 
   if (facts.openItems.length) {

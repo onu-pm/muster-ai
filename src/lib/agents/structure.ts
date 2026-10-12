@@ -1,6 +1,6 @@
 import 'server-only';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getConfirmedRule } from '@/lib/data/rules';
+import { getConfirmedRuleAsService } from '@/lib/data/rules';
 import { listPeople } from '@/lib/data/knowledge';
 import {
   applyWageTest,
@@ -33,7 +33,7 @@ export async function runStructure(
 ): Promise<StructureRunResult> {
   const [people, rule] = await Promise.all([
     listPeople(orgId),
-    getConfirmedRule(orgId, 'wage_definition'),
+    getConfirmedRuleAsService(orgId, 'wage_definition'),
   ]);
 
   const definition = wageDefinitionFrom(rule?.definition);
@@ -68,13 +68,23 @@ export async function runStructure(
       withoutStructure,
     },
     output: {
-      summary: `Checked the basic-pay split for ${withStructure.length} of ${
-        employees.length
-      }. ${breaches.length} below the statutory half.${
-        withoutStructure > 0
-          ? ` ${withoutStructure} have no salary structure on record.`
-          : ''
-      }`,
+      /*
+       * Said the way it would be said out loud: the standup reads this key
+       * straight out, so "for 0 of 69. 0 below the statutory half." cannot be
+       * what it contains.
+       */
+      summary:
+        withStructure.length === 0
+          ? `Couldn't check the basic-pay split for anyone — none of the ${employees.length} on the roster have a salary structure on record.`
+          : `Checked the basic-pay split for ${withStructure.length} of ${employees.length}. ${
+              breaches.length === 0
+                ? 'All of them clear the statutory half.'
+                : `${breaches.length} ${breaches.length === 1 ? 'is' : 'are'} below the statutory half.`
+            }${
+              withoutStructure > 0
+                ? ` ${withoutStructure} ${withoutStructure === 1 ? 'has' : 'have'} no salary structure on record.`
+                : ''
+            }`,
       results: results.map(({ person, result }) => ({
         person: person.fullName,
         ratio: result.ratio,

@@ -84,15 +84,77 @@ membership check by definition.
 - **Pursue's real channel.** Holly drafts follow-up messages and records the
   intent, but nothing is sent — there is no WhatsApp Business account behind it.
   The Marketplace shows the channel as coming soon rather than hiding it.
-- **The other five teammates.** Arjun, Mira, Dev, Sana and Noor exist in the
-  catalogue with real desks so the team strip and grid are honest about where
-  this is going, but they are dimmed and not selectable.
+- **A claims channel for Dev.** He tracks group cover and prepares additions
+  and removals, but chasing an insurer on a live claim needs an insurer
+  connected, and there is no sandbox for one. The agent is listed and marked as
+  needing a connection rather than hidden.
+- **A leave ledger.** Leave arrives from whatever is connected, a month at a
+  time, so there is no running balance to read. Noor therefore asks for the
+  encashable days rather than assuming a zero — a missing encashment looks
+  exactly like a correct one on a payslip.
 - **An editable Org Brain.** "What Holly knows" is read-only. Facts are written
   by correcting her in the flow where the mistake appeared, which keeps every
   fact attached to the evidence that produced it. A free-text editor over the
   same data would let facts drift away from their evidence.
 - **Statutory filing.** Holly computes EPFO, ESIC and TDS figures but cannot
   file them. Those portals are listed as coming soon.
+
+## Four new desks on the existing schema
+
+Records, benefits, reviews and exits added no tables. The schema was already
+domain-neutral where it counts: `duty_instances` is a piece of work with a type,
+a state and an optional subject; `steps` is what was done, with its input and
+output; `exceptions` is the queue of what stopped at a person; `artifacts` is a
+document that arrived. None of those type columns are enums — they are `text` —
+so a new domain is a new duty type on the same substrate rather than a
+migration. `src/lib/data/duties.ts` is the shared surface, and
+`src/lib/data/duty-lifecycle.ts` says what a duty becomes once somebody decides.
+
+That last file exists because of a bug worth recording. Resolving the last open
+exception on a duty used to close the duty, which is right nearly everywhere and
+wrong in two places. A benefit enrolment duty *is* the cover — blocked means
+proposed, in progress means live, closed means off the policy — so approving an
+enrolment closed the duty and took the person off the cover at the exact moment
+somebody said to put them on it. An exit has the same shape: it has to stay open
+after the settlement is agreed, because the person is on the roster until their
+last day passes. Both are pinned by tests now.
+
+### The settlement is the sharp end
+
+A final settlement is the last money an employer ever sends someone. There is no
+next month to catch an error in it, and the person receiving it has usually lost
+the standing to argue. So `src/lib/rules/settlement.ts` composes it from parts
+that are each separately tested — salary to the last day, leave encashment,
+gratuity under the Act, notice recovery, anything still owed — and Noor never
+contributes a figure of his own. It leaves itemised, with the basis for every
+line and every assumption named, and waits:
+
+> **you** — work out the final settlement for Priya Nair
+> **Noor** — Priya Nair, last day 20 Jun 2024, 10 years and 2 months of service.
+> **Noor** — Salary for the final part month: ₹40,000 — 20 of 30 days worked, over a 30-day month.
+> **Noor** — Leave encashment: ₹17,000 — 17 encashable days of a 17-day balance, on basic and dearness allowance over a 30-day month.
+> **Noor** — Gratuity: ₹1,73,077 — 10 completed years of service at fifteen days' wages a year.
+> **Noor** — That comes to ₹2,30,077 before tax, of which ₹1,73,077 is exempt.
+> **Noor** — The leave entitlement and encashment cap are the common private-sector defaults, not a rule you have confirmed. Confirm your own and I will use it instead.
+> **Noor** — Nothing goes out until you approve it. *[Approve / Reject / Tell me what's wrong]*
+
+Asking again recomputes and **withdraws the earlier proposal** rather than
+queueing beside it. Two open approvals for one settlement is how somebody gets
+paid twice.
+
+### Saying "I can't tell" instead of "nothing to report"
+
+Three places where the honest answer is harder than the reassuring one:
+
+- Sana will not say "no reviews due" when nobody has a joining date on file. A
+  cycle counts from that date, so without it she cannot tell, and says so —
+  naming Mira, who collects them.
+- Noor leaves leave encashment out entirely rather than computing it as zero,
+  and says why.
+- Mira reports a gap by *pattern*, not per person. Sixty-nine people missing the
+  same three fields is one finding — usually an import that did not carry those
+  columns — and raising it sixty-nine times buries everything else on the desk
+  under one problem. Every name still travels in the payload.
 
 ## Holly's agents
 
@@ -151,6 +213,10 @@ work. Catchup and the Marketplace remain as places to review things later.
 | --- | --- | --- |
 | **Holly** | Payroll and statutory compliance | Attendance and leave, Pay structure, Tax and declarations, Follow-ups |
 | **Hansel** | Hiring and onboarding | Applications, Offers, Onboarding |
+| **Mira** | Records and documents | File checks, Documents, Statutory registers |
+| **Dev** | Benefits and insurance | Eligibility, Additions and removals, Claims |
+| **Sana** | Performance and reviews | Review cycles, What has slipped, Probation confirmations |
+| **Noor** | Exits and final settlement | Notice and dates, Full and final, Clearance |
 
 Nobody using Muster picks a teammate. A goal goes to `src/lib/agents/router.ts`,
 which works out which *capabilities* it needs — often spanning both people —
@@ -203,6 +269,9 @@ in this codebase would change what Muster itself has to be.
 | [perminder-klair/resume-parser](https://github.com/perminder-klair/resume-parser) | **MIT** ✓ | The section-heading dictionary and dictionary-driven extraction approach, rewritten in TypeScript in `src/lib/hiring/cv.ts`. Its network profile-scraping was deliberately dropped — Muster does not fetch a candidate's public profiles. |
 | [Vercel AI SDK](https://github.com/vercel/ai) + [OpenRouter provider](https://github.com/OpenRouterTeam/ai-sdk-provider) | **Apache-2.0** ✓ | Transport and `streamText`. `generateObject` unusable here — see above. |
 | [openai/openai-agents-python](https://github.com/openai/openai-agents-python) | **MIT** ✓ | The handoff pattern — agents exposing named handoffs rather than one orchestrator knowing everyone's internals — adapted in `src/lib/agents/registry.ts`. Narrower here: capabilities are a fixed declared set, so a model can never name a function. |
+| [urlaubsverwaltung/urlaubsverwaltung](https://github.com/urlaubsverwaltung/urlaubsverwaltung) | **Apache-2.0** ✓ | The leave-balance model from `VacationDaysLeft` and `ExpiredRemainingVacationDays`: this year's entitlement held separately from the carry-forward, and the carry-forward split into the part that expires and the part that does not. Rewritten in `src/lib/rules/leave-balance.ts`. One flat "balance" cannot answer the question that matters at an exit, which is how much of it is still live. |
+| [OfficeDev/microsoft-teams-apps-newemployeeonboarding](https://github.com/OfficeDev/microsoft-teams-apps-newemployeeonboarding) | **MIT** ✓ | The checklist taxonomy — grouping a joiner's file into identity, pay details and statutory enrolment rather than one flat list, and separating what the employer needs from what the joiner must supply. Shapes `src/lib/rules/records.ts`. |
+| [stepanogil/autonomous-hr-chatbot](https://github.com/stepanogil/autonomous-hr-chatbot) | **MIT** ✓ | Read as a reference for the tool-calling HR agent shape. Nothing was copied: its pattern lets the model compose the answer from retrieved policy text, which is the opposite of what Muster needs — here the model never contributes a figure. Recorded because it was evaluated, not because code came from it. |
 
 **Rejected on licence grounds**, despite being the better parsers:
 
@@ -215,6 +284,12 @@ in this codebase would change what Muster itself has to be.
   [Documenso](https://github.com/documenso/documenso) AGPL-3.0.
 - [Mastra](https://github.com/mastra-ai/mastra) — LICENSE.md splits the repo;
   not uniformly permissive.
+- [minthcm/minthcm](https://github.com/minthcm/minthcm) — **AGPL-3.0**. The
+  closest thing to an open-source HCM with agents in it, and unusable for
+  exactly that reason.
+- [zero8dotdev/avkash](https://github.com/zero8dotdev/avkash) — **AGPL-3.0**.
+  An open-core leave and attendance API; the domain model was the appealing
+  part and `urlaubsverwaltung` provided it permissively instead.
 
 ## Where the statutory figures came from
 
@@ -227,6 +302,9 @@ table in `src/lib/rules/tax-tables.ts` carries its provenance inline. Summary:
 | EPF 12% employer, 8.33% to EPS, 0.5% EDLI, ₹15,000 wage ceiling | **Verified** against EPFO's published material on [epfo.gov.in](https://www.epfo.gov.in). The contribution-rate PDF itself could not be parsed, so the 0.5% admin charge is the least certain figure here |
 | ESI ₹21,000 coverage ceiling | **Not verified** — not stated on the ESIC page that was reachable |
 | Income tax slabs, standard deduction, 87A rebate, cess, surcharge, 80C/80D/24(b) caps | **Not verified against a primary source.** incometaxindia.gov.in refuses automated access (HTTP 403). Corroborated only across independent tax publishers. **Re-check these before any real filing.** |
+| Gratuity: five years' continuous service, 15/26 formula, six-month rounding, ₹20,00,000 ceiling | **Cited to the statute** in `src/lib/rules/gratuity.ts` section by section — Payment of Gratuity Act 1972 ss.2(s), 4(1), 4(2) and its proviso, 4(3); the ceiling raised by notification S.O. 1420(E) of 29 March 2018. Not re-verified against the gazette, for the same HTTP 403 reason |
+| ESI ₹21,000 and EPF ₹15,000 wage ceilings used for records and benefits eligibility | Same status as above — the ESI ceiling remains the least certain figure in the codebase |
+| Leave entitlement, carry-forward caps, encashment, notice periods, review cadence, group cover | **Not statutory, and not claimed to be.** Earned leave is set per state under the Shops and Establishments Acts and the Factories Act 1948 s.79; notice is contractual; reviews and group cover are entirely policy. Every one of these is a *policy input* read from a confirmed rule, with a documented default, and anything a person reads says which was used. See `leave-balance.ts`, `notice.ts`, `review-cycle.ts`, `benefits.ts` |
 
 ## Two deliberate departures from the brief
 
@@ -261,4 +339,8 @@ preview environments are not, so preview builds will fail until those are added.
 - [x] Holly's agents, on tested deterministic rule code
 - [x] The five screens, built to the layout spec
 - [x] Deployed
-- [ ] Migration 0007 applied (needs a Postgres connection string)
+- [x] All six teammates, with real capabilities on tested rule code
+- [x] A cron worker that sweeps records, cover, reviews and exits daily — and calls no model at all, which is what makes it safe to run unattended
+- [ ] Migration 0007 applied (needs a Postgres connection string). Nothing
+      depends on it: the four new desks needed no schema change, and `kind_label`
+      degrades to the labels module.
